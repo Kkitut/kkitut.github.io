@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Admin Login</title>
+  </head>
+  <body>
+    <h2>Admin Panel Login</h2>
+    <form onsubmit="startMadness(); return false;">
+      <label for="id">Username:</label><br>
+      <input type="text" id="id" name="id"><br>
+      <label for="pw">Password:</label><br>
+      <input type="password" id="pw" name="pw"><br><br>
+      <input type="submit" value="Login">
+    </form>
+
+    <canvas id="hell" style="display:none; position:absolute; top:0; left:0;"></canvas>
+
+    <script>
+      function startMadness() {
+        const canvas = document.getElementById("hell");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        canvas.style.display = "block";
+
+        function draw() {
+          for (let i = 0; i < 100; i++) {
+            ctx.fillStyle = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            ctx.beginPath();
+            ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 50, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        setInterval(draw, 100);
+      }
+    </script>
+  </body>
+</html>

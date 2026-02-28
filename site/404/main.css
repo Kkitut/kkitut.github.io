@@ -1,0 +1,25 @@
+html, body {
+    height: 100%;
+    box-sizing: border-box;
+}
+
+#error-message {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    margin-top: calc(34vh - 40px);
+}
+
+#error-message h1 {
+    font-weight: 900;
+    font-size: 20vmin;
+    margin: 0;
+}
+
+#error-message p {
+    font-weight: 300;
+    font-size: 4vmin;
+    margin-top: 1rem;
+}

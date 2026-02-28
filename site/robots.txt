@@ -1,0 +1,5 @@
+# I'm a beginner, and wecome bots! ;)
+User-agent: *
+Allow: /$
+Allow: /src/
+Allow: /res/
