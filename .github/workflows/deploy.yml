@@ -32,9 +32,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Install Trunk
-        uses: jetli/trunk@v0.2.1
-        with:
-          version: latest
+        run: cargo install trunk --locked
 
       - name: Build
         run: trunk build --release
