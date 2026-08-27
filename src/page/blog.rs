@@ -116,7 +116,6 @@ pub fn Blog() -> impl IntoView {
         </>
     }
 }
-
 #[component]
 fn BlogList(posts: Memo<Vec<Post>>) -> impl IntoView {
     let grouped = Memo::new(move |_| {
@@ -125,7 +124,7 @@ fn BlogList(posts: Memo<Vec<Post>>) -> impl IntoView {
         let mut months = Vec::<(&str, Vec<Post>)>::new();
 
         for post in posts {
-            let month = post.date.get(..7).unwrap_or(post.date);
+            let month = post.date.get(..6).unwrap_or(post.date);
 
             if let Some((_, month_posts)) =
                 months.iter_mut().find(|(key, _)| *key == month)
@@ -375,9 +374,8 @@ pub fn BlogPost(slug: String) -> impl IntoView {
         }.into_any(),
     }
 }
-
 fn format_month(date: &str) -> String {
-    let Some(month) = date.get(5..7) else {
+    let Some(month) = date.get(4..6) else {
         return date.to_owned();
     };
 
@@ -401,13 +399,13 @@ fn format_month(date: &str) -> String {
 }
 
 fn format_date(date: &str) -> String {
-    let Some((year, month, day)) = date.split_once('-')
-        .and_then(|(year, rest)| {
-            rest.split_once('-').map(|(month, day)| (year, month, day))
-        })
-    else {
+    if date.len() != 8 {
         return date.to_owned();
-    };
+    }
+
+    let year = &date[..4];
+    let month = &date[4..6];
+    let day = &date[6..8];
 
     format!("{month}/{day}/{}", &year[2..])
 }

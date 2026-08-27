@@ -1,7 +1,7 @@
 +++
 title = "Blue Sky"
 desc = "대기권"
-date = "2026-04-16"
+date = "20260416"
 tag = "thoughts"
 +++
 
