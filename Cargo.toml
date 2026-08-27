@@ -1,0 +1,19 @@
+[package]
+name = "kkitut-org"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+leptos = { version = "0.8.20", features = ["csr"] }
+pulldown-cmark = "0.13.4"
+web-sys = { version = "0.3.104", features = [
+    "Element",
+    "DomRect",
+    "Window",
+    "ScrollToOptions",
+    "ScrollBehavior",
+] }
+wasm-bindgen = "0.2.127"
+
+[build-dependencies]
+pulldown-cmark = "0.13.4"

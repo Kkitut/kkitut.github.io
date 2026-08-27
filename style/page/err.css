@@ -1,0 +1,34 @@
+.err-main {
+    flex: 1;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.err-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    line-height: 1;
+}
+
+.err-content span {
+    font-size: 52px;
+    font-weight: 900;
+}
+
+.err-content small {
+    margin-top: 10px;
+
+    font-size: 16px;
+    font-weight: 200;
+
+    opacity: 0.35;
+}

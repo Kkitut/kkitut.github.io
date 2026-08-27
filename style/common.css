@@ -1,0 +1,49 @@
+@import url("/res/font/SUITE-woff2/SUITE.css");
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    min-height: 100vh;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+
+    background: #302b2e;
+    color: white;
+
+    font-family: "SUITE", sans-serif;
+    font-size: 28px;
+
+    overflow-x: hidden;
+}
+
+#app {
+    width: 100%;
+    min-height: 100vh;
+
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+
+    width: 100%;
+    margin: 0 auto;
+
+    padding: 56px clamp(12px, 5vw, 216px) 320px;
+}
+
+@media (max-width: 820px) {
+    body {
+        font-size: 22px;
+    }
+}

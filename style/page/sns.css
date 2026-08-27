@@ -1,0 +1,168 @@
+.sns-main {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    padding: 56px 24px 320px;
+}
+
+.sns-grid {
+    width: 100%;
+    max-width: 960px;
+
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+
+    gap: 16px;
+}
+
+.sns-tile {
+    position: relative;
+
+    min-height: 180px;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+
+    padding: 28px;
+
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+
+    color: white;
+    text-decoration: none;
+
+    overflow: hidden;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.sns-tile:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: white;
+}
+
+/* GitHub */
+
+.sns-github {
+    grid-column: 1 / -1;
+
+    min-height: 240px;
+
+    display: grid;
+    grid-template-columns: 3fr 1fr;
+
+    padding: 0;
+}
+
+.sns-github-main,
+.sns-github-org {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+
+    padding: 28px;
+
+    color: white;
+    text-decoration: none;
+}
+
+.sns-github-org {
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.sns-github-main:hover,
+.sns-github-org:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.sns-youtube {
+    border-color: rgba(255, 93, 125, 0.18);
+}
+.sns-youtube:hover {
+    border-color: rgba(255, 141, 163, 0.45);
+}
+
+.sns-discord {
+    border-color: rgba(114, 137, 218, 0.35);
+}
+.sns-discord:hover {
+    border-color: rgba(114, 137, 218, 0.7);
+}
+
+.sns-tile h2,
+.sns-github h2 {
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.sns-github h3 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.sns-tile p,
+.sns-github p {
+    margin-top: 8px;
+
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.6;
+
+    opacity: 0.6;
+}
+
+.sns-tile > span,
+.sns-github span {
+    padding-right: 48px;
+
+    font-size: 12px;
+    font-weight: 400;
+
+    opacity: 0.5;
+}
+
+.sns-logo {
+    position: absolute;
+
+    right: 24px;
+    bottom: 24px;
+
+    width: 32px;
+    height: 32px;
+
+    object-fit: contain;
+
+    opacity: 0.7;
+}
+
+@media (max-width: 820px) {
+    .sns-main {
+        padding: 32px 16px 240px;
+    }
+
+    .sns-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .sns-github {
+        grid-column: auto;
+
+        grid-template-columns: 1fr;
+    }
+
+    .sns-github-org {
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+        border-left: 0;
+    }
+
+    .sns-tile,
+    .sns-github {
+        min-height: 160px;
+    }
+}
