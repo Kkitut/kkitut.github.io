@@ -37,6 +37,10 @@ jobs:
       - name: Build
         run: trunk build --release
 
+      # Leptos CSR SPA fallback
+      - name: Copy index.html to 404.html
+        run: cp dist/index.html dist/404.html
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
