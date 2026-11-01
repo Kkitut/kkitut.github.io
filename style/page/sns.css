@@ -36,8 +36,8 @@
     overflow: hidden;
 
     transition:
-        background 0.2s ease,
-        border-color 0.2s ease;
+        background 0.2s cubic-bezier(0.37, 0, 0.63, 1),
+        border-color 0.2s cubic-bezier(0.37, 0, 0.63, 1);
 }
 
 .sns-tile:hover {

@@ -29,6 +29,18 @@ fn main() {
                 <page::Sns/>
             }.into_any(),
 
+            "/index" => view! {
+                <page::Index/>
+            }.into_any(),
+
+            "/bot" => view! {
+                <page::Bot/>
+            }.into_any(),
+
+            "/bot/rustoki" => view! {
+                <page::Rustoki/>
+            }.into_any(),
+
             "/me" => view! {
                 <page::Me/>
             }.into_any(),

@@ -63,7 +63,7 @@
     text-decoration-color: #666;
     text-underline-offset: 3px;
 
-    transition: text-decoration-color 0.15s ease;
+    transition: text-decoration-color 0.15s cubic-bezier(0.37, 0, 0.63, 1);
 }
 
 .markdown a:hover {

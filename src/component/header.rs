@@ -11,10 +11,10 @@ pub fn Header() -> impl IntoView {
                     let _ = web_sys::window()
                         .unwrap()
                         .location()
-                        .set_href("/blog");
+                        .set_href("/index");
                 }
             >
-                <span class="menu-text">"Blog"</span>
+                <span class="menu-text">"Index"</span>
             </div>
 
             <div
