@@ -3,7 +3,7 @@ slug = "idiot"
 title = "Im idiot"
 desc = "내가 Rust를 사용하는 이유"
 date = "20260827"
-tag = "thoughts"
+tag = "programming"
 +++
 
 몇 번 들어본 말 중에 **"C/C++를 Rust로 대체해야 한다"** 는 이야기가 있다.

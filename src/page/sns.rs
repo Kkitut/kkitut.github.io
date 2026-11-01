@@ -80,7 +80,7 @@ pub fn Sns() -> impl IntoView {
 
                         <a
                             class="sns-tile sns-discord"
-                            href="https://discord.com/invite/SY4HD9pmzq"
+                            href="https://discord.kkitut.org"
                             target="_blank"
                             rel="noopener noreferrer"
                         >
@@ -89,7 +89,7 @@ pub fn Sns() -> impl IntoView {
                                 <p>"목적없는 서버, 디스코드 ID는 kkitut"</p>
                             </div>
 
-                            <span>"discord.com/invite/SY4HD9pmzq"</span>
+                            <span>"discord.kkitut.org"</span>
 
                             <img
                                 class="sns-logo"
