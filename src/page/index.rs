@@ -50,7 +50,9 @@ pub fn Index() -> impl IntoView {
                         </nav>
 
                         <div class="index-strip">
-                            "× × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × × ×"
+                            {(0..100).map(|_| view! {
+                                <span class="index-x">"×"</span>
+                            }).collect_view()}
                         </div>
                     </div>
                 </main>

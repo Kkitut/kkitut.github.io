@@ -228,7 +228,7 @@ a.bot-rustoki:hover {
 
 .rk-bang {
     position: absolute;
-    right: 76px;
+    right: 142px;
     top: -32px;
 
     font-size: clamp(120px, 20vw, 280px);
@@ -383,7 +383,7 @@ a.bot-rustoki:hover {
     }
 
     .rk-bang {
-        right: 16px;
+        right: 88px;
     }
 
     .rk-rule {
