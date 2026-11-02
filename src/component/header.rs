@@ -15,11 +15,17 @@ pub fn Header() -> impl IntoView {
                 href="/"
                 on:click=move |ev| {
                     ev.prevent_default();
-                    // in-app back stack, bottoms out at home (never leaves the site)
-                    match crate::pop_path() {
-                        Some(path) => navigate(&path, Default::default()),
-                        None => navigate("/", Default::default()),
+                    // one level up, bottoming out at home (never above /)
+                    let raw = window().location().pathname().unwrap_or_default();
+                    let path = raw.trim_end_matches('/');
+                    if path.is_empty() {
+                        return;
                     }
+                    let up = match path.rfind('/') {
+                        Some(0) | None => "/",
+                        Some(i) => &path[..i],
+                    };
+                    navigate(up, Default::default());
                 }
             >
                 <div class="home-bar"/>
