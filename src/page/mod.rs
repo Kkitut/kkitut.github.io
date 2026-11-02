@@ -10,7 +10,7 @@ mod sns;
 
 pub use blog::{Blog, BlogPost};
 pub use bot::{Bot, Rustoki};
-pub use day::BlueSkyBody;
+pub use day::Day;
 pub use err::Err;
 pub use home::Home;
 pub use index::Index;

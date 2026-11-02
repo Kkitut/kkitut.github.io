@@ -2,7 +2,7 @@ use leptos::{prelude::*, ev};
 use leptos_router::hooks::use_params_map;
 
 use crate::component::{Footer, Header};
-use crate::page::BlueSkyBody;
+use crate::page::Day;
 use wasm_bindgen::{closure::Closure, JsCast};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -274,7 +274,7 @@ pub fn BlogPost() -> impl IntoView {
                                 </div>
 
                                 {match post.custom {
-                                    Some("bluesky") => view! { <BlueSkyBody qid=qid/> }.into_any(),
+                                    Some("day") => view! { <Day qid=qid/> }.into_any(),
                                     _ => view! {
                                         <article
                                             class="markdown blog-article"
