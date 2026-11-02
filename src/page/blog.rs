@@ -2,7 +2,7 @@ use leptos::{prelude::*, ev};
 use leptos_router::hooks::use_params_map;
 
 use crate::component::{Footer, Header};
-use crate::page::BlueSky;
+use crate::page::BlueSkyBody;
 use wasm_bindgen::{closure::Closure, JsCast};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -170,10 +170,7 @@ fn BlogList(posts: Memo<Vec<Post>>) -> impl IntoView {
 
 #[component]
 fn BlogCard(post: Post) -> impl IntoView {
-    let href = match post.custom {
-        Some(_) => format!("/custom/{}", post.slug),
-        None => format!("/blog/{}", post.slug),
-    };
+    let href = format!("/blog/{}", post.slug);
 
     view! {
         <a class="blog-post" href=href>
@@ -250,11 +247,9 @@ pub fn BlogPost() -> impl IntoView {
 
     view! {
         {move || match post.get() {
-            Some(post) => match post.custom {
-                // custom pages render their own <main>, like Rustoki
-                Some("bluesky") => view! { <BlueSky/> }.into_any(),
-                _ => {
-                    let sections = post.sections;
+            Some(post) => {
+                let sections = post.sections;
+                let qid = sections.first().map(|section| section.id).unwrap_or("");
                 view! {
                     <>
                         <link rel="stylesheet" href="/style/common.css"/>
@@ -278,10 +273,15 @@ pub fn BlogPost() -> impl IntoView {
                                     </div>
                                 </div>
 
-                                <article
-                                    class="markdown blog-article"
-                                    inner_html=post.content
-                                />
+                                {match post.custom {
+                                    Some("bluesky") => view! { <BlueSkyBody qid=qid/> }.into_any(),
+                                    _ => view! {
+                                        <article
+                                            class="markdown blog-article"
+                                            inner_html=post.content
+                                        />
+                                    }.into_any(),
+                                }}
                             </article>
 
                             {(!sections.is_empty()).then(|| view! {
@@ -378,12 +378,11 @@ pub fn BlogPost() -> impl IntoView {
                         </div>
                     </>
                     }.into_any()
-                }
             }
 
-                None => view! {
-                    <crate::page::Err code=404/>
-                }.into_any(),
+            None => view! {
+                <crate::page::Err code=404/>
+            }.into_any(),
             }
         }
     }

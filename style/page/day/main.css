@@ -1,110 +1,42 @@
 /* Blue Sky custom post: black / white / gray only.
    Easings used here are sine, expo and circ only. */
 
-.bs-page {
-    padding: 0;
-}
-
-.bs-hero,
-.bs-act,
-.bs-finale {
-    padding: 20vh 24px;
-}
-
-.bs-hero {
-    min-height: 100vh;
-    min-height: 100dvh;
-
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 20px;
-
-    background: #000;
-    color: #fff;
-
-    text-align: center;
-}
-
 .bs-kicker {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.5em;
     text-indent: 0.5em;
 
-    opacity: 0.55;
+    opacity: 0.45;
 }
 
-.bs-title {
-    font-size: clamp(64px, 15vw, 208px);
+.bs-lead {
+    margin-top: 56px;
+    margin-bottom: 32px;
+
+    font-size: clamp(24px, 4.2vw, 44px);
     font-weight: 800;
-    line-height: 1;
-    letter-spacing: -0.03em;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
 }
 
-.bs-title-en {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 0.45em;
-    text-indent: 0.45em;
-    text-transform: uppercase;
-
-    opacity: 0.55;
+.bs-lead:first-child {
+    margin-top: 0;
 }
 
-.bs-dot {
-    width: 12px;
-    height: 12px;
-    margin-top: 40px;
+.bs-body {
+    margin-top: 18px;
 
-    background: #fff;
-    border-radius: 999px;
+    font-size: 17px;
+    line-height: 1.9;
 
-    animation: bs-float 7s cubic-bezier(0.37, 0, 0.63, 1) infinite alternate;
-}
-
-@keyframes bs-float {
-    from {
-        transform: translateY(-18px);
-    }
-    to {
-        transform: translateY(18px);
-    }
-}
-
-.bs-cue {
-    width: 1px;
-    height: 56px;
-    margin-top: 8px;
-
-    background: #fff;
-
-    transform-origin: 50% 0;
-    animation: bs-cue 2.2s cubic-bezier(0.37, 0, 0.63, 1) infinite;
-}
-
-@keyframes bs-cue {
-    0% {
-        transform: scaleY(0);
-        opacity: 0;
-    }
-    35% {
-        transform: scaleY(1);
-        opacity: 0.8;
-    }
-    70% {
-        transform: scaleY(1);
-        opacity: 0;
-    }
-    100% {
-        transform: scaleY(0);
-        opacity: 0;
-    }
+    opacity: 0.75;
 }
 
 .bs-strip {
     overflow: hidden;
+
+    margin: 48px 0;
 
     background: #8e8e8e;
     color: #000;
@@ -136,14 +68,8 @@
 }
 
 .bs-act {
-    background: #302b2e;
-    color: #fff;
-}
-
-.bs-act > * {
-    max-width: 720px;
-    margin-left: auto;
-    margin-right: auto;
+    margin: 64px 0;
+    padding: 56px 40px;
 }
 
 .bs-white {
@@ -161,27 +87,9 @@
     color: #000;
 }
 
-.bs-lead {
-    margin-bottom: 40px;
-
-    font-size: clamp(26px, 4.6vw, 54px);
-    font-weight: 800;
-    line-height: 1.25;
-    letter-spacing: -0.02em;
-}
-
-.bs-body {
-    margin-top: 22px;
-
-    font-size: 17px;
-    line-height: 1.9;
-
-    opacity: 0.75;
-}
-
 .bs-horizon {
-    height: 120px;
-    margin: 56px 0;
+    height: 110px;
+    margin: 48px 0;
 
     background: linear-gradient(
         90deg,
@@ -207,11 +115,11 @@
 }
 
 .bs-ring {
-    width: min(220px, 50vw);
-    height: min(220px, 50vw);
-    margin: 0 auto 64px;
+    width: 140px;
+    height: 140px;
+    margin: 0 auto 48px;
 
-    border: 1px solid currentColor;
+    border: 1px solid currentcolor;
     border-radius: 999px;
 
     opacity: 0.35;
@@ -230,19 +138,18 @@
 }
 
 .bs-question {
-    margin-bottom: 56px;
+    margin-bottom: 40px;
 
-    font-size: clamp(30px, 5.6vw, 80px);
+    font-size: clamp(26px, 4.6vw, 54px);
     font-weight: 800;
-    line-height: 1.2;
+    line-height: 1.25;
     letter-spacing: -0.02em;
-    text-align: center;
 }
 
 .bs-spell {
     margin-top: 40px;
 
-    font-size: clamp(24px, 4.2vw, 48px);
+    font-size: clamp(22px, 3.8vw, 40px);
     font-weight: 800;
     line-height: 1.5;
 }
@@ -269,9 +176,6 @@
 }
 
 .bs-finale {
-    background: #000;
-    color: #fff;
-
     text-align: center;
 }
 
@@ -280,12 +184,12 @@
 }
 
 .bs-final-title {
-    margin-top: 56px;
+    margin-top: 40px;
 
-    font-size: clamp(72px, 17vw, 260px);
+    font-size: clamp(52px, 11vw, 132px);
     font-weight: 800;
     line-height: 1;
-    letter-spacing: -0.04em;
+    letter-spacing: -0.03em;
 
     transition:
         opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1),
@@ -302,13 +206,21 @@
     transform: none;
 }
 
-.bs-finale .bs-title-en {
-    margin-top: 24px;
+.bs-title-en {
+    margin-top: 20px;
+
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.45em;
+    text-indent: 0.45em;
+    text-transform: uppercase;
+
+    opacity: 0.55;
 }
 
 [data-reveal] {
     opacity: 0;
-    transform: translateY(40px);
+    transform: translateY(36px);
 
     transition:
         opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
@@ -321,13 +233,7 @@
 }
 
 @media (max-width: 820px) {
-    .bs-hero,
-    .bs-act,
-    .bs-finale {
-        padding: 16vh 16px;
-    }
-
-    .bs-ring {
-        margin-bottom: 48px;
+    .bs-act {
+        padding: 40px 20px;
     }
 }
