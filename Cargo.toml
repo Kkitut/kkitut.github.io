@@ -11,6 +11,7 @@ web-sys = { version = "0.3.104", features = [
     "Element",
     "DomRect",
     "Window",
+    "History",
     "KeyboardEvent",
     "MouseEvent",
     "ScrollToOptions",

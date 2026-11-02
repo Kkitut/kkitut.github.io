@@ -15,17 +15,18 @@ pub fn Header() -> impl IntoView {
                 href="/"
                 on:click=move |ev| {
                     ev.prevent_default();
-                    // one level up, bottoming out at home (never above /)
-                    let raw = window().location().pathname().unwrap_or_default();
-                    let path = raw.trim_end_matches('/');
-                    if path.is_empty() {
+                    if window().location().pathname().as_deref() == Ok("/") {
                         return;
                     }
-                    let up = match path.rfind('/') {
-                        Some(0) | None => "/",
-                        Some(i) => &path[..i],
-                    };
-                    navigate(up, Default::default());
+                    // one flight at a time: extra taps while navigating are dropped
+                    if !crate::try_fly() {
+                        return;
+                    }
+                    if crate::back_depth() > 0 {
+                        let _ = window().history().map(|history| history.back());
+                    } else {
+                        navigate("/", Default::default());
+                    }
                 }
             >
                 <div class="home-bar"/>
