@@ -10,6 +10,18 @@ extern "C" {
 
 #[component]
 pub fn Bot() -> impl IntoView {
+    // /bot fits in the viewport: lock scrolling, restore on leave
+    Effect::new(move |_| {
+        if let Some(body) = document().body() {
+            let _ = body.style().set_property("overflow", "hidden");
+        }
+    });
+    on_cleanup(move || {
+        if let Some(body) = document().body() {
+            let _ = body.style().set_property("overflow", "");
+        }
+    });
+
     view! {
         <>
             <link rel="stylesheet" href="/style/common.css"/>
