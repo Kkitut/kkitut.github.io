@@ -41,7 +41,7 @@ pub fn BlueSky() -> impl IntoView {
             <link rel="stylesheet" href="/style/common.css"/>
             <link rel="stylesheet" href="/style/header.css"/>
             <link rel="stylesheet" href="/style/footer.css"/>
-            <link rel="stylesheet" href="/style/page/custom/day.css"/>
+            <link rel="stylesheet" href="/style/page/day.css"/>
 
             <div id="app">
                 <Header/>
