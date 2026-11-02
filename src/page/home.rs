@@ -47,6 +47,44 @@ fn set_style(id: &str, prop: &str, val: &str) {
     }
 }
 
+/// Frustum culling for the far sprite (double-sided, so the browser
+/// can't cull it). Mirrors the matrix t computed in cam_frame — keep
+/// in sync. Exact sphere-vs-frustum test, camera as pinhole at the eye.
+fn sprite_visible(
+    vw: f32,
+    vh: f32,
+    sw: f32,
+    sh: f32,
+    ox: f32,
+    oy: f32,
+    yaw: f32,
+    pitch: f32,
+    px: f32,
+    py: f32,
+    pz: f32,
+) -> bool {
+    let (sy, cy) = yaw.sin_cos();
+    let (sp, cp) = pitch.sin_cos();
+    let (ex, ey, ez) = (vw * 0.5, vh * 0.5, PERSP);
+    let (qx, qy, qz) = (ex + px, ey + py, ez + pz);
+    let t0 = ex - (cy * qx + -sy * qz);
+    let t1 = ey - (sy * sp * qx + cp * qy + cy * sp * qz);
+    let t2 = ez - (sy * cp * qx + -sp * qy + cy * cp * qz);
+    let vx = cy * sw - sy * SPRITE_Z + t0;
+    let vy = sy * sp * sw + cp * sh + cy * sp * SPRITE_Z + t1;
+    let vz = sy * cp * sw - sp * sh + cy * cp * SPRITE_Z + t2;
+    let sr = (vw.min(vh) * SPRITE_VMIN).min(SPRITE_PX) * FRAC_1_SQRT_2 + 1.0;
+    let ax = ox / PERSP;
+    let bx = (vw - ox) / PERSP;
+    let ay = oy / PERSP;
+    let by = (vh - oy) / PERSP;
+    vz - PERSP < sr
+        && (vx - ox - ax * (vz - PERSP)) / (1.0 + ax * ax).sqrt() > -sr
+        && (ox - vx - bx * (vz - PERSP)) / (1.0 + bx * bx).sqrt() > -sr
+        && (vy - oy - ay * (vz - PERSP)) / (1.0 + ay * ay).sqrt() > -sr
+        && (oy - vy - by * (vz - PERSP)) / (1.0 + by * by).sqrt() > -sr
+}
+
 fn cam_frame() {
     CAM.with(|c| {
         let mut slot = c.borrow_mut();
@@ -121,27 +159,12 @@ fn cam_frame() {
                         t0, t1, t2
                     ),
                 );
-                // Manual frustum culling: the sprite is double-sided, so
-                // the browser can't cull it. Exact sphere-vs-frustum test
-                // with the camera as a pinhole at the eye.
-                let sr = (vw.min(vh) * SPRITE_VMIN).min(SPRITE_PX) * FRAC_1_SQRT_2 + 1.0;
+                // Manual frustum culling (see sprite_visible).
                 let sw = el.client_width() as f32 * 0.5;
                 let sh = el.client_height() as f32 * 0.5;
-                let vx = cy * sw - sy * SPRITE_Z + t0;
-                let vy = sy * sp * sw + cp * sh + cy * sp * SPRITE_Z + t1;
-                let vz = sy * cp * sw - sp * sh + cy * cp * SPRITE_Z + t2;
-                // frustum planes through the eye; slopes from the
-                // perspective origin (body center), clipped to viewport
+                // Perspective origin is the body center, not the viewport.
                 let (ox, oy) = document().body().map(|b| (b.client_width() as f32 * 0.5, b.client_height() as f32 * 0.5)).unwrap_or((ex, ey));
-                let ax = ox / PERSP;
-                let bx = (vw - ox) / PERSP;
-                let ay = oy / PERSP;
-                let by = (vh - oy) / PERSP;
-                let vis = vz - PERSP < sr
-                    && (vx - ox - ax * (vz - PERSP)) / (1.0 + ax * ax).sqrt() > -sr
-                    && (ox - vx - bx * (vz - PERSP)) / (1.0 + bx * bx).sqrt() > -sr
-                    && (vy - oy - ay * (vz - PERSP)) / (1.0 + ay * ay).sqrt() > -sr
-                    && (oy - vy - by * (vz - PERSP)) / (1.0 + by * by).sqrt() > -sr;
+                let vis = sprite_visible(vw, vh, sw, sh, ox, oy, st.cur[4], st.cur[3], px, py, pz);
                 if vis != st.back_vis {
                     st.back_vis = vis;
                     // visibility (not display): no relayout, keeps the decoded image
@@ -354,5 +377,65 @@ pub fn Home() -> impl IntoView {
                 />
             </div>
         </>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::f32::consts::PI;
+
+    // Viewport the browser automation measured: 800x894, app fills it.
+    const VW: f32 = 800.0;
+    const VH: f32 = 894.0;
+
+    fn vis(yaw: f32, pitch: f32, px: f32, py: f32, pz: f32) -> bool {
+        sprite_visible(VW, VH, VW * 0.5, VH * 0.5, VW * 0.5, VH * 0.5, yaw, pitch, px, py, pz)
+    }
+
+    #[test]
+    fn hidden_behind_camera_at_start() {
+        assert!(!vis(0.0, 0.0, 0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn shown_when_turned_around() {
+        assert!(vis(PI, 0.0, 0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn hidden_at_exact_side() {
+        assert!(!vis(PI / 2.0, 0.0, 0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn shown_at_side_edge() {
+        // Regression: the shifted-frustum build hid these.
+        assert!(vis(PI - 0.55, 0.0, 2000.0, 0.0, 0.0));
+        assert!(vis(PI + 0.55, 0.0, -2000.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn shown_up_close() {
+        assert!(vis(PI, 0.0, 0.0, 0.0, 3000.0));
+    }
+
+    #[test]
+    fn hidden_when_fully_outside() {
+        assert!(!vis(PI, 0.0, 0.0, 0.0, 5000.0));
+        assert!(!vis(PI + 0.5, 0.0, 0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn move_axes_are_unit_and_orthogonal() {
+        let [f, r] = axes(0.0, 0.0);
+        assert_eq!(f, [0.0, 0.0, -1.0]);
+        assert_eq!(r, [1.0, 0.0, 0.0]);
+
+        let [f, r] = axes(0.5, 1.2);
+        let len = |v: [f32; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+        assert!((len(f) - 1.0).abs() < 1e-6);
+        assert!((len(r) - 1.0).abs() < 1e-6);
+        assert!((f[0] * r[0] + f[1] * r[1] + f[2] * r[2]).abs() < 1e-6);
     }
 }

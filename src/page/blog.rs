@@ -414,3 +414,26 @@ fn format_date(date: &str) -> String {
 
     format!("{month}/{day}/{}", &year[2..])
 }
+#[cfg(test)]
+mod tests {
+    use super::{format_date, format_month};
+
+    #[test]
+    fn month_names() {
+        assert_eq!(format_month("20260827"), "2026 AUG");
+        assert_eq!(format_month("20260102"), "2026 JAN");
+        assert_eq!(format_month("20261231"), "2026 DEC");
+    }
+
+    #[test]
+    fn month_passthrough() {
+        assert_eq!(format_month("2026-13-99"), "2026-13-99");
+        assert_eq!(format_month("oops"), "oops");
+    }
+
+    #[test]
+    fn short_dates() {
+        assert_eq!(format_date("20260827"), "08/27/26");
+        assert_eq!(format_date("nope"), "nope");
+    }
+}
