@@ -171,7 +171,7 @@ fn BlogList(posts: Memo<Vec<Post>>) -> impl IntoView {
 #[component]
 fn BlogCard(post: Post) -> impl IntoView {
     let href = match post.custom {
-        Some(_) => format!("/blogcustom/{}", post.slug),
+        Some(_) => format!("/custom/{}", post.slug),
         None => format!("/blog/{}", post.slug),
     };
 

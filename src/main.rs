@@ -64,8 +64,8 @@ fn App() -> impl IntoView {
                 <Route path=path!("/index") view=page::Index/>
                 <Route path=path!("/blog") view=page::Blog/>
                 <Route path=path!("/blog/:slug") view=page::BlogPost/>
-                <Route path=path!("/blogcustom/:name") view=page::BlogCustom/>
-                <Route path=path!("/blogcustom/:name/*rest") view=page::BlogCustom/>
+                <Route path=path!("/custom/:name") view=page::BlogCustom/>
+                <Route path=path!("/custom/:name/*rest") view=page::BlogCustom/>
                 <Route path=path!("/bot") view=page::Bot/>
                 <Route path=path!("/bot/rustoki") view=page::Rustoki/>
                 <Route path=path!("/sns") view=page::Sns/>

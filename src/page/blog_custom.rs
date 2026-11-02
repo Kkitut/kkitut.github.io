@@ -5,7 +5,7 @@ use crate::page::{BlueSky, Err};
 
 use super::blog::BLOG_POSTS;
 
-/// Custom pages by name: /blogcustom/:name (plus anything under it).
+/// Custom pages by name: /custom/:name (plus anything under it).
 /// A slug without a custom page 404s here; its home is /blog/:slug.
 #[component]
 pub fn BlogCustom() -> impl IntoView {
