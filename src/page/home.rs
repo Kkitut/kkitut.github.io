@@ -207,7 +207,13 @@ pub fn Home() -> impl IntoView {
         }
     });
 
-    on_cleanup(cam_stop);
+    // SPA: leaving the page doesn't reload, so reset what party mode changed
+    on_cleanup(move || {
+        cam_stop();
+        if let Some(b) = document().body() {
+            let _ = b.style().set_property("background", "");
+        }
+    });
 
     window_event_listener(ev::keydown, move |e| {
         if e.key() == "Shift" {

@@ -1,4 +1,5 @@
 use leptos::{prelude::*, ev};
+use leptos_router::hooks::use_params_map;
 
 use crate::component::{Footer, Header};
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -201,61 +202,63 @@ fn BlogCard(post: Post) -> impl IntoView {
 }
 
 #[component]
-pub fn BlogPost(slug: String) -> impl IntoView {
-    let post = BLOG_POSTS
-        .iter()
-        .find(|post| post.slug == slug);
+pub fn BlogPost() -> impl IntoView {
+    let params = use_params_map();
+    let post = Memo::new(move |_| {
+        let slug = params.read().get("slug").unwrap_or_default();
+        BLOG_POSTS.iter().find(|post| post.slug == slug).copied()
+    });
 
-    match post {
-        Some(post) => {
-            let sections = post.sections;
+    let (progress, set_progress) = signal(0.0f64);
 
-            let (progress, set_progress) = signal(0.0f64);
+    let update_progress = move || {
+        let window = window();
+        let document = document();
 
-            let update_progress = move || {
-                let window = window();
-                let document = document();
+        let scroll_top = window.scroll_y().unwrap_or(0.0);
 
-                let scroll_top = window.scroll_y().unwrap_or(0.0);
+        let viewport_height = window
+            .inner_height()
+            .ok()
+            .and_then(|value| value.as_f64())
+            .unwrap_or(0.0);
 
-                let viewport_height = window
-                    .inner_height()
-                    .ok()
-                    .and_then(|value| value.as_f64())
-                    .unwrap_or(0.0);
+        let document_height = document
+            .document_element()
+            .map(|element| element.scroll_height() as f64)
+            .unwrap_or(0.0);
 
-                let document_height = document
-                    .document_element()
-                    .map(|element| element.scroll_height() as f64)
-                    .unwrap_or(0.0);
+        let max_scroll = (document_height - viewport_height).max(1.0);
 
-                let max_scroll = (document_height - viewport_height).max(1.0);
+        set_progress.set(
+            (scroll_top / max_scroll).clamp(0.0, 1.0)
+        );
+    };
 
-                set_progress.set(
-                    (scroll_top / max_scroll).clamp(0.0, 1.0)
-                );
-            };
+    Effect::new(move |_| {
+        update_progress();
+    });
 
-            Effect::new(move |_| {
-                update_progress();
-            });
+    window_event_listener(ev::scroll, move |_| {
+        update_progress();
+    });
 
-            window_event_listener(ev::scroll, move |_| {
-                update_progress();
-            });
+    view! {
+        {move || match post.get() {
+            Some(post) => {
+                let sections = post.sections;
+                view! {
+                    <>
+                        <link rel="stylesheet" href="/style/common.css"/>
+                        <link rel="stylesheet" href="/style/header.css"/>
+                        <link rel="stylesheet" href="/style/footer.css"/>
+                        <link rel="stylesheet" href="/style/page/blog.css"/>
+                        <link rel="stylesheet" href="/style/markdown.css"/>
 
-            view! {
-                <>
-                    <link rel="stylesheet" href="/style/common.css"/>
-                    <link rel="stylesheet" href="/style/header.css"/>
-                    <link rel="stylesheet" href="/style/footer.css"/>
-                    <link rel="stylesheet" href="/style/page/blog.css"/>
-                    <link rel="stylesheet" href="/style/markdown.css"/>
+                        <div id="app">
+                            <Header/>
 
-                    <div id="app">
-                        <Header/>
-
-                        <main class="blog-main blog-detail-main">
+                            <main class="blog-main blog-detail-main">
                             <article class="blog-detail">
                                 <div class="blog-detail-header">
                                     <div class="blog-detail-date">
@@ -361,17 +364,19 @@ pub fn BlogPost(slug: String) -> impl IntoView {
                                     </div>
                                 </nav>
                             })}
-                        </main>
+                            </main>
 
-                        <Footer/>
-                    </div>
-                </>
-            }.into_any()
+                            <Footer/>
+                        </div>
+                    </>
+                    }.into_any()
+                }
+
+                None => view! {
+                    <crate::page::Err code=404/>
+                }.into_any(),
+            }
         }
-
-        None => view! {
-            <crate::page::Err code=404/>
-        }.into_any(),
     }
 }
 fn format_month(date: &str) -> String {

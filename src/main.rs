@@ -1,57 +1,45 @@
 use leptos::prelude::*;
-use leptos::web_sys;
+use leptos_router::{
+    components::{Route, Router, Routes},
+    hooks::use_location,
+    path,
+};
 
 mod component;
 mod page;
 
-fn main() {
-    mount_to_body(|| {
-        let path = web_sys::window()
-            .unwrap()
-            .location()
-            .pathname()
-            .unwrap_or_default();
-
-        match path.as_str() {
-           "/blog" => view! {
-                <page::Blog/>
-            }.into_any(),
-
-            path if path.starts_with("/blog/") => {
-                let slug = path.trim_start_matches("/blog/");
-
-                view! {
-                    <page::BlogPost slug=slug.to_owned()/>
-                }.into_any()
-            }
-
-            "/sns" => view! {
-                <page::Sns/>
-            }.into_any(),
-
-            "/index" => view! {
-                <page::Index/>
-            }.into_any(),
-
-            "/bot" => view! {
-                <page::Bot/>
-            }.into_any(),
-
-            "/bot/rustoki" => view! {
-                <page::Rustoki/>
-            }.into_any(),
-
-            "/me" => view! {
-                <page::Me/>
-            }.into_any(),
-
-            "/" => view! {
-                <page::Home/>
-            }.into_any(),
-
-            _ => view! {
-                <page::Err code=404/>
-            }.into_any(),
+#[component]
+fn ScrollTop() -> impl IntoView {
+    let loc = use_location();
+    // MPA parity: start at the top on every navigation
+    Effect::new(move |_| {
+        loc.pathname.get();
+        if let Some(el) = document().document_element() {
+            el.set_scroll_top(0);
         }
     });
+    view! { <></> }
+}
+
+#[component]
+fn App() -> impl IntoView {
+    view! {
+        <Router>
+            <ScrollTop/>
+            <Routes fallback=|| view! { <page::Err code=404/> }>
+                <Route path=path!("/") view=page::Home/>
+                <Route path=path!("/index") view=page::Index/>
+                <Route path=path!("/blog") view=page::Blog/>
+                <Route path=path!("/blog/:slug") view=page::BlogPost/>
+                <Route path=path!("/bot") view=page::Bot/>
+                <Route path=path!("/bot/rustoki") view=page::Rustoki/>
+                <Route path=path!("/sns") view=page::Sns/>
+                <Route path=path!("/me") view=page::Me/>
+            </Routes>
+        </Router>
+    }
+}
+
+fn main() {
+    mount_to_body(App)
 }
