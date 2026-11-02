@@ -28,7 +28,7 @@ body {
         transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.home-party {
+#app.home-party {
     background: #302b2e;
 
     transform-style: preserve-3d;
@@ -38,4 +38,33 @@ body {
 
 .home-party .home-main {
     transform-style: preserve-3d;
+    transform: translateZ(8px);
+}
+
+.home-party header,
+.home-party footer {
+    transform: translateZ(8px);
+}
+
+.home-party .home-logo {
+    will-change: auto;
+}
+
+.gl-back {
+    display: none; /* 2D mode: hidden. party mode shows it (below),
+                      per-frame culling toggles visibility in home.rs */
+    position: absolute;
+    left: 50%;
+    top: 50%;
+
+    max-width: 60vmin;
+    max-height: 60vmin;
+
+    transform: translate(-50%, -50%) translateZ(4800px) rotateY(180deg);
+
+    pointer-events: none;
+}
+
+#app.home-party .gl-back {
+    display: block;
 }

@@ -1,13 +1,21 @@
+use leptos::web_sys::HtmlElement;
 use leptos::{ev, prelude::*};
+use std::f32::consts::FRAC_1_SQRT_2;
 use wasm_bindgen::prelude::*;
 
 use crate::component::{Footer, Header};
 
-#[wasm_bindgen::prelude::wasm_bindgen]
+#[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen::prelude::wasm_bindgen(js_namespace = Date)]
+    #[wasm_bindgen(js_namespace = Date)]
     fn now() -> f64;
 }
+
+// Must match home.css: body perspective, .gl-back translateZ and max size.
+const PERSP: f32 = 1000.0;
+const SPRITE_Z: f32 = 4800.0;
+const SPRITE_VMIN: f32 = 0.6;
+const SPRITE_PX: f32 = 1280.0;
 
 thread_local! {
     static CAM: std::cell::RefCell<Option<CamState>> =
@@ -21,6 +29,22 @@ struct CamState {
     keys: std::collections::HashSet<String>,
     cur: [f32; 5],
     tgt: [f32; 5],
+    lw: f32,
+    lh: f32,
+    back_vis: bool,
+}
+
+fn axes(pitch: f32, yaw: f32) -> [[f32; 3]; 2] {
+    let (sy, cy) = yaw.sin_cos();
+    let (sp, cp) = pitch.sin_cos();
+    [[-sy * cp, sp, -cy * cp], [cy, 0.0, -sy]]
+}
+
+fn set_style(id: &str, prop: &str, val: &str) {
+    if let Some(el) = document().get_element_by_id(id) {
+        let el: HtmlElement = el.unchecked_into();
+        let _ = el.style().set_property(prop, val);
+    }
 }
 
 fn cam_frame() {
@@ -30,64 +54,100 @@ fn cam_frame() {
         let locked = document().pointer_lock_element().is_some();
         if !locked {
             let (mx, my) = MOUSE.with(|m| m.get());
-            st.tgt[3] = (-my * 0.21).clamp(-1.05, 1.05);
+            st.tgt[3] = (my * 0.21).clamp(-1.05, 1.05);
             st.tgt[4] = -mx * 0.28;
         }
-        // camera-space movement (FPS: yaw -= dx, pitch -= dy)
-        let (sy, cy) = st.tgt[4].sin_cos();
-        let (sp, cp) = st.tgt[3].sin_cos();
+        // camera-space FPS movement
+        let [go, side] = axes(st.tgt[3], st.tgt[4]);
         let step = 7.0;
         if st.keys.contains("KeyW") {
-            st.tgt[0] += -sy * cp * step;
-            st.tgt[1] += sp * step;
-            st.tgt[2] += -cy * cp * step;
+            st.tgt[0] += go[0] * step;
+            st.tgt[1] += go[1] * step;
+            st.tgt[2] += go[2] * step;
         }
         if st.keys.contains("KeyS") {
-            st.tgt[0] += sy * cp * step;
-            st.tgt[1] += -sp * step;
-            st.tgt[2] += cy * cp * step;
+            st.tgt[0] -= go[0] * step;
+            st.tgt[1] -= go[1] * step;
+            st.tgt[2] -= go[2] * step;
         }
         if st.keys.contains("KeyD") {
-            st.tgt[0] += cy * step;
-            st.tgt[2] += -sy * step;
+            st.tgt[0] += side[0] * step;
+            st.tgt[2] += side[2] * step;
         }
         if st.keys.contains("KeyA") {
-            st.tgt[0] += -cy * step;
-            st.tgt[2] += sy * step;
+            st.tgt[0] -= side[0] * step;
+            st.tgt[2] -= side[2] * step;
         }
         if st.keys.contains("Space") {
-            st.tgt[1] += step;
-        }
-        if st.keys.contains("KeyC") {
             st.tgt[1] -= step;
         }
-        for i in 0..5 {
-            st.cur[i] += (st.tgt[i] - st.cur[i]) * 0.12;
+        if st.keys.contains("KeyC") {
+            st.tgt[1] += step;
         }
-        // view matrix = R^T * T(-pos), pivoted about screen center:
-        // t = D - R^T * (D + C), D = viewport center
-        let (sy, cy) = st.cur[4].sin_cos();
-        let (sp, cp) = st.cur[3].sin_cos();
-        let (px, py, pz) = (st.cur[0], st.cur[1], st.cur[2]);
+        // no easing: 1:1 response (CSS handles party on/off)
         let vw = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
         let vh = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
-        let (dx, dy) = (vw * 0.5, vh * 0.5);
-        let (qx, qy, qz) = (dx + px, dy + py, pz);
-        let t0 = dx - (cy * qx + -sy * qz);
-        let t1 = dy - (sy * sp * qx + cp * qy + cy * sp * qz);
-        let t2 = -(sy * cp * qx + -sp * qy + cy * cp * qz);
-        if let Some(el) = document().get_element_by_id("app") {
-            let el: leptos::web_sys::HtmlElement = el.unchecked_into();
-            let _ = el.style().set_property(
-                "transform",
-                &format!(
-                    "matrix3d({:.5},{:.5},{:.5},0,{:.5},{:.5},{:.5},0,{:.5},{:.5},{:.5},0,{:.1},{:.1},{:.1},1)",
-                    cy, sy * sp, sy * cp,
-                    0.0, cp, -sp,
-                    -sy, cy * sp, cy * cp,
-                    t0, t1, t2
-                ),
-            );
+        let mut changed = vw != st.lw || vh != st.lh;
+        for i in 0..5 {
+            if st.cur[i] != st.tgt[i] {
+                changed = true;
+                break;
+            }
+        }
+        if changed {
+            st.cur = st.tgt;
+            st.lw = vw;
+            st.lh = vh;
+            // View matrix V(X) = M * (X - C) + D: rotation M (columns
+            // below), translated about the eye D. Culling replicates
+            // M * S + t exactly (rows, not R^T — t carries the pivot).
+            let (sy, cy) = st.cur[4].sin_cos();
+            let (sp, cp) = st.cur[3].sin_cos();
+            let (px, py, pz) = (st.cur[0], st.cur[1], st.cur[2]);
+            let (ex, ey, ez) = (vw * 0.5, vh * 0.5, PERSP);
+            let (qx, qy, qz) = (ex + px, ey + py, ez + pz);
+            let t0 = ex - (cy * qx + -sy * qz);
+            let t1 = ey - (sy * sp * qx + cp * qy + cy * sp * qz);
+            let t2 = ez - (sy * cp * qx + -sp * qy + cy * cp * qz);
+            if let Some(el) = document().get_element_by_id("app") {
+                let el: HtmlElement = el.unchecked_into();
+                let _ = el.style().set_property(
+                    "transform",
+                    &format!(
+                        "matrix3d({:.5},{:.5},{:.5},0,{:.5},{:.5},{:.5},0,{:.5},{:.5},{:.5},0,{:.1},{:.1},{:.1},1)",
+                        cy, sy * sp, sy * cp,
+                        0.0, cp, -sp,
+                        -sy, cy * sp, cy * cp,
+                        t0, t1, t2
+                    ),
+                );
+                // Manual frustum culling: the sprite is double-sided, so
+                // the browser can't cull it. Exact sphere-vs-frustum test
+                // with the camera as a pinhole at the eye.
+                let sr = (vw.min(vh) * SPRITE_VMIN).min(SPRITE_PX) * FRAC_1_SQRT_2 + 1.0;
+                let sw = el.client_width() as f32 * 0.5;
+                let sh = el.client_height() as f32 * 0.5;
+                let vx = cy * sw - sy * SPRITE_Z + t0;
+                let vy = sy * sp * sw + cp * sh + cy * sp * SPRITE_Z + t1;
+                let vz = sy * cp * sw - sp * sh + cy * cp * SPRITE_Z + t2;
+                // frustum planes through the eye; slopes from the
+                // perspective origin (body center), clipped to viewport
+                let (ox, oy) = document().body().map(|b| (b.client_width() as f32 * 0.5, b.client_height() as f32 * 0.5)).unwrap_or((ex, ey));
+                let ax = ox / PERSP;
+                let bx = (vw - ox) / PERSP;
+                let ay = oy / PERSP;
+                let by = (vh - oy) / PERSP;
+                let vis = vz - PERSP < sr
+                    && (vx - ox - ax * (vz - PERSP)) / (1.0 + ax * ax).sqrt() > -sr
+                    && (ox - vx - bx * (vz - PERSP)) / (1.0 + bx * bx).sqrt() > -sr
+                    && (vy - oy - ay * (vz - PERSP)) / (1.0 + ay * ay).sqrt() > -sr
+                    && (oy - vy - by * (vz - PERSP)) / (1.0 + by * by).sqrt() > -sr;
+                if vis != st.back_vis {
+                    st.back_vis = vis;
+                    // visibility (not display): no relayout, keeps the decoded image
+                    set_style("gl-back", "visibility", if vis { "" } else { "hidden" });
+                }
+            }
         }
         if let Ok(id) =
             window().request_animation_frame(st.tick.as_js_value().unchecked_ref())
@@ -109,10 +169,13 @@ fn cam_start() {
             keys: std::collections::HashSet::new(),
             cur: [0.0; 5],
             tgt: [0.0; 5],
+            lw: 0.0,
+            lh: 0.0,
+            back_vis: true,
         });
     });
     if let Some(el) = document().get_element_by_id("app") {
-        let el: leptos::web_sys::HtmlElement = el.unchecked_into();
+        let el: HtmlElement = el.unchecked_into();
         el.request_pointer_lock();
     }
     cam_frame();
@@ -123,10 +186,8 @@ fn cam_stop() {
     CAM.with(|p| {
         if let Some(st) = p.borrow_mut().take() {
             let _ = window().cancel_animation_frame(st.id);
-            if let Some(el) = document().get_element_by_id("app") {
-                let el: leptos::web_sys::HtmlElement = el.unchecked_into();
-                let _ = el.style().set_property("transform", "");
-            }
+            set_style("app", "transform", "");
+            set_style("gl-back", "visibility", "");
         }
     });
 }
@@ -140,10 +201,9 @@ pub fn Home() -> impl IntoView {
 
     Effect::new(move |_| {
         if let Some(b) = document().body() {
-            let _ = b.style().set_property(
-                "background",
-                if party.get() { "#000" } else { "" },
-            );
+            let _ = b
+                .style()
+                .set_property("background", if party.get() { "#000" } else { "" });
         }
     });
 
@@ -191,6 +251,21 @@ pub fn Home() -> impl IntoView {
         });
     });
 
+    window_event_listener(ev::wheel, move |e| {
+        if !party.get() {
+            return;
+        }
+        CAM.with(|f| {
+            if let Some(st) = f.borrow_mut().as_mut() {
+                let [go, _] = axes(st.tgt[3], st.tgt[4]);
+                let d = -(e.delta_y() as f32) * 0.4;
+                st.tgt[0] += go[0] * d;
+                st.tgt[1] += go[1] * d;
+                st.tgt[2] += go[2] * d;
+            }
+        });
+    });
+
     window_event_listener(ev::click, move |_| {
         if !party.get() {
             return;
@@ -199,7 +274,7 @@ pub fn Home() -> impl IntoView {
             return;
         }
         if let Some(el) = document().get_element_by_id("app") {
-            let el: leptos::web_sys::HtmlElement = el.unchecked_into();
+            let el: HtmlElement = el.unchecked_into();
             el.request_pointer_lock();
         }
     });
@@ -209,8 +284,7 @@ pub fn Home() -> impl IntoView {
             CAM.with(|c| {
                 if let Some(st) = c.borrow_mut().as_mut() {
                     st.tgt[4] -= e.movement_x() as f32 * 0.0025;
-                    st.tgt[3] =
-                        (st.tgt[3] - e.movement_y() as f32 * 0.0025).clamp(-1.05, 1.05);
+                    st.tgt[3] = (st.tgt[3] + e.movement_y() as f32 * 0.0025).clamp(-1.05, 1.05);
                 }
             });
             return;
@@ -264,6 +338,14 @@ pub fn Home() -> impl IntoView {
                 </main>
 
                 <Footer/>
+
+                <img
+                    id="gl-back"
+                    class="gl-back"
+                    src="/res/image/kkitut_ks.png"
+                    loading="lazy"
+                    alt=""
+                />
             </div>
         </>
     }

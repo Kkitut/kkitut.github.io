@@ -31,8 +31,13 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
       - name: Install Trunk
-        run: cargo install trunk --locked
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall trunk --no-confirm
 
       - name: Build
         run: trunk build --release
