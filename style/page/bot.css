@@ -271,7 +271,7 @@ a.bot-rustoki:hover {
 }
 
 .rk-rule {
-    margin: 0 -34px 32px;
+    margin: 0 0 32px;
 
     border-top: 1px solid rgba(255, 255, 255, 0.7);
 }
@@ -373,6 +373,10 @@ a.bot-rustoki:hover {
         padding: 0 16px;
     }
 
+    .rk-strip {
+        margin: 64px 16px 0;
+    }
+
     .rk-sec {
         margin-top: 64px;
         padding: 0 16px;
@@ -384,9 +388,5 @@ a.bot-rustoki:hover {
 
     .rk-bang {
         right: 88px;
-    }
-
-    .rk-rule {
-        margin: 0 -16px 32px;
     }
 }
