@@ -126,6 +126,7 @@ fn main() {
         let mut desc = String::new();
         let mut date = String::new();
         let mut tag = String::new();
+        let mut custom: Option<String> = None;
 
         for line in front.lines() {
             let Some((key, value)) = line.split_once('=') else {
@@ -139,6 +140,7 @@ fn main() {
                 "desc" => desc = value.to_owned(),
                 "date" => date = value.to_owned(),
                 "tag" => tag = value.to_owned(),
+                "custom" => custom = Some(value.to_owned()),
                 _ => {}
             }
         }
@@ -157,6 +159,7 @@ fn main() {
             desc,
             date,
             tag,
+            custom,
             content,
             sections,
         ));
@@ -174,16 +177,18 @@ fn main() {
         desc,
         date,
         tag,
+        custom,
         content,
         sections,
     ) in posts {
         output.push_str(&format!(
-            "    Post {{ slug: {:?}, title: {:?}, desc: {:?}, date: {:?}, tag: {:?}, content: {:?}, sections: &[",
+            "    Post {{ slug: {:?}, title: {:?}, desc: {:?}, date: {:?}, tag: {:?}, custom: {:?}, content: {:?}, sections: &[",
             slug,
             title,
             desc,
             date,
             tag,
+            custom.as_deref(),
             content,
         ));
 

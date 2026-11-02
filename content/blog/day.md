@@ -3,6 +3,7 @@ title = "Blue Sky"
 desc = "대기권"
 date = "20260416"
 tag = "thoughts"
+custom = "bluesky"
 +++
 
 지구의 탄생 이래 이어진 파란 하늘.

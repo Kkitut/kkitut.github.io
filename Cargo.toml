@@ -10,6 +10,7 @@ pulldown-cmark = "0.13.4"
 web-sys = { version = "0.3.104", features = [
     "Element",
     "DomRect",
+    "NodeList",
     "Window",
     "History",
     "KeyboardEvent",

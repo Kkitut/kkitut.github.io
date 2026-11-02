@@ -2,6 +2,7 @@ use leptos::{prelude::*, ev};
 use leptos_router::hooks::use_params_map;
 
 use crate::component::{Footer, Header};
+use crate::page::BlueSky;
 use wasm_bindgen::{closure::Closure, JsCast};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -17,6 +18,7 @@ pub struct Post {
     pub desc: &'static str,
     pub date: &'static str,
     pub tag: &'static str,
+    pub custom: Option<&'static str>,
     pub content: &'static str,
     pub sections: &'static [Section],
 }
@@ -168,7 +170,10 @@ fn BlogList(posts: Memo<Vec<Post>>) -> impl IntoView {
 
 #[component]
 fn BlogCard(post: Post) -> impl IntoView {
-    let href = format!("/blog/{}", post.slug);
+    let href = match post.custom {
+        Some(_) => format!("/blogcustom/{}", post.slug),
+        None => format!("/blog/{}", post.slug),
+    };
 
     view! {
         <a class="blog-post" href=href>
@@ -245,8 +250,11 @@ pub fn BlogPost() -> impl IntoView {
 
     view! {
         {move || match post.get() {
-            Some(post) => {
-                let sections = post.sections;
+            Some(post) => match post.custom {
+                // custom pages render their own <main>, like Rustoki
+                Some("bluesky") => view! { <BlueSky/> }.into_any(),
+                _ => {
+                    let sections = post.sections;
                 view! {
                     <>
                         <link rel="stylesheet" href="/style/common.css"/>
@@ -371,6 +379,7 @@ pub fn BlogPost() -> impl IntoView {
                     </>
                     }.into_any()
                 }
+            }
 
                 None => view! {
                     <crate::page::Err code=404/>
