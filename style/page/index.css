@@ -101,6 +101,7 @@
 
 .index-block {
     min-height: 52vh;
+    min-height: 52dvh;
 
     position: relative;
     display: flex;
@@ -276,6 +277,7 @@
         flex-direction: column;
 
         min-height: 44vh;
+        min-height: 44dvh;
     }
 
     .index-block-main {
