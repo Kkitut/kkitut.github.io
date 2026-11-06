@@ -1,6 +1,6 @@
 use leptos::web_sys::HtmlElement;
 use leptos::{ev, prelude::*};
-use std::f32::consts::FRAC_1_SQRT_2;
+use std::f32::consts::{FRAC_1_SQRT_2, PI, TAU};
 use wasm_bindgen::prelude::*;
 
 use crate::component::{Footer, Header};
@@ -38,6 +38,12 @@ fn axes(pitch: f32, yaw: f32) -> [[f32; 3]; 2] {
     let (sy, cy) = yaw.sin_cos();
     let (sp, cp) = pitch.sin_cos();
     [[-sy * cp, sp, -cy * cp], [cy, 0.0, -sy]]
+}
+
+// Engine-style free look: wrap to [-PI, PI] instead of clamping, so the
+// angles stay bounded (no float precision loss / inf) while spinning forever.
+fn wrap_angle(a: f32) -> f32 {
+    (a + PI).rem_euclid(TAU) - PI
 }
 
 fn set_style(id: &str, prop: &str, val: &str) {
@@ -92,7 +98,7 @@ fn cam_frame() {
         let locked = document().pointer_lock_element().is_some();
         if !locked {
             let (mx, my) = MOUSE.with(|m| m.get());
-            st.tgt[3] = (my * 0.21).clamp(-1.05, 1.05);
+            st.tgt[3] = my * 0.21;
             st.tgt[4] = -mx * 0.28;
         }
         // camera-space FPS movement
@@ -238,7 +244,7 @@ pub fn Home() -> impl IntoView {
         }
     });
 
-    window_event_listener(ev::keydown, move |e| {
+    let key_h = window_event_listener(ev::keydown, move |e| {
         if e.key() == "Shift" {
             set_shift.set(true);
             if !e.repeat() {
@@ -269,7 +275,7 @@ pub fn Home() -> impl IntoView {
         });
     });
 
-    window_event_listener(ev::keyup, move |e| {
+    let keyup_h = window_event_listener(ev::keyup, move |e| {
         if e.key() == "Shift" {
             set_shift.set(false);
         }
@@ -280,7 +286,7 @@ pub fn Home() -> impl IntoView {
         });
     });
 
-    window_event_listener(ev::wheel, move |e| {
+    let wheel_h = window_event_listener(ev::wheel, move |e| {
         if !party.get() {
             return;
         }
@@ -295,7 +301,7 @@ pub fn Home() -> impl IntoView {
         });
     });
 
-    window_event_listener(ev::click, move |_| {
+    let click_h = window_event_listener(ev::click, move |_| {
         if !party.get() {
             return;
         }
@@ -308,12 +314,12 @@ pub fn Home() -> impl IntoView {
         }
     });
 
-    window_event_listener(ev::mousemove, move |e| {
+    let mouse_h = window_event_listener(ev::mousemove, move |e| {
         if party.get() && document().pointer_lock_element().is_some() {
             CAM.with(|c| {
                 if let Some(st) = c.borrow_mut().as_mut() {
-                    st.tgt[4] -= e.movement_x() as f32 * 0.0025;
-                    st.tgt[3] = (st.tgt[3] + e.movement_y() as f32 * 0.0025).clamp(-1.05, 1.05);
+                    st.tgt[4] = wrap_angle(st.tgt[4] - e.movement_x() as f32 * 0.0025);
+                    st.tgt[3] = wrap_angle(st.tgt[3] + e.movement_y() as f32 * 0.0025);
                 }
             });
             return;
@@ -332,6 +338,13 @@ pub fn Home() -> impl IntoView {
         let y = (f64::from(e.client_y()) / h - 0.5) * 2.0;
         MOUSE.with(|m| m.set((x as f32, y as f32)));
         set_tilt.set((x, y));
+    });
+    on_cleanup(move || {
+        key_h.remove();
+        keyup_h.remove();
+        wheel_h.remove();
+        click_h.remove();
+        mouse_h.remove();
     });
 
     let style = move || {
@@ -424,6 +437,19 @@ mod tests {
     fn hidden_when_fully_outside() {
         assert!(!vis(PI, 0.0, 0.0, 0.0, 5000.0));
         assert!(!vis(PI + 0.5, 0.0, 0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn angles_wrap_without_clamping() {
+        // Spinning forever stays bounded: no float growth, same rotation.
+        assert!((wrap_angle(3.0 * PI) - -PI).abs() < 1e-6);
+        assert!((wrap_angle(-3.0 * PI) - -PI).abs() < 1e-6);
+        for a in [0.0, 1.05, 2.5, 10.0, 100.0, -7.3] {
+            let w = wrap_angle(a);
+            assert!(w >= -PI && w <= PI);
+            assert!((w.sin() - a.sin()).abs() < 1e-5);
+            assert!((w.cos() - a.cos()).abs() < 1e-5);
+        }
     }
 
     #[test]
