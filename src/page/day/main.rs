@@ -28,9 +28,10 @@ pub fn Day(qid: &'static str) -> impl IntoView {
         reveal();
     });
 
-    window_event_listener(ev::scroll, move |_| {
+    let scroll_h = window_event_listener(ev::scroll, move |_| {
         reveal();
     });
+    on_cleanup(move || scroll_h.remove());
 
     let staring = "멍해질 만큼 넓은 우주,";
 

@@ -241,9 +241,10 @@ pub fn BlogPost() -> impl IntoView {
         update_progress();
     });
 
-    window_event_listener(ev::scroll, move |_| {
+    let scroll_h = window_event_listener(ev::scroll, move |_| {
         update_progress();
     });
+    on_cleanup(move || scroll_h.remove());
 
     view! {
         {move || match post.get() {
