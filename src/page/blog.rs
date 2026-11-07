@@ -2,7 +2,7 @@ use leptos::{prelude::*, ev};
 use leptos_router::hooks::use_params_map;
 
 use crate::component::{Footer, Header};
-use crate::page::Day;
+use crate::page::{Day, Wave};
 use wasm_bindgen::{closure::Closure, JsCast};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -262,7 +262,10 @@ pub fn BlogPost() -> impl IntoView {
                         <div id="app">
                             <Header/>
 
-                            <main class="blog-main blog-detail-main">
+                            {match post.custom {
+                                Some("wave") => view! { <Wave/> }.into_any(),
+                                _ => view! {
+                                    <main class="blog-main blog-detail-main">
                             <article class="blog-detail">
                                 <div class="blog-detail-header">
                                     <div class="blog-detail-date">
@@ -374,6 +377,8 @@ pub fn BlogPost() -> impl IntoView {
                                 </nav>
                             })}
                             </main>
+                                }.into_any(),
+                            }}
 
                             <Footer/>
                         </div>

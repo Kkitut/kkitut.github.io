@@ -112,6 +112,8 @@ fn main() {
             continue;
         }
 
+        println!("cargo:rerun-if-changed={}", path.display());
+
         let source = fs::read_to_string(&path).unwrap();
 
         let Some(front) = source.strip_prefix("+++\n") else {
