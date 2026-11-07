@@ -2,7 +2,7 @@ use leptos::{prelude::*, ev};
 use leptos_router::hooks::use_params_map;
 
 use crate::component::{Footer, Header};
-use crate::page::{Day, Wave};
+use crate::page::Wave;
 use wasm_bindgen::{closure::Closure, JsCast};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -250,7 +250,6 @@ pub fn BlogPost() -> impl IntoView {
         {move || match post.get() {
             Some(post) => {
                 let sections = post.sections;
-                let qid = sections.first().map(|section| section.id).unwrap_or("");
                 view! {
                     <>
                         <link rel="stylesheet" href="/style/common.css"/>
@@ -277,15 +276,10 @@ pub fn BlogPost() -> impl IntoView {
                                     </div>
                                 </div>
 
-                                {match post.custom {
-                                    Some("day") => view! { <Day qid=qid/> }.into_any(),
-                                    _ => view! {
-                                        <article
-                                            class="markdown blog-article"
-                                            inner_html=post.content
-                                        />
-                                    }.into_any(),
-                                }}
+                                <article
+                                    class="markdown blog-article"
+                                    inner_html=post.content
+                                />
                             </article>
 
                             {(!sections.is_empty()).then(|| view! {
