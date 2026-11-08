@@ -27,14 +27,16 @@ impl WaveSim {
         let mut damping = vec![0.993f32; size];
 
         for y in 0..height {
+            let dist_y = y.min(height - 1 - y);
+            let damp_y = if dist_y < margin {
+                let factor = dist_y as f32 / margin as f32;
+                0.78 + 0.213 * factor
+            } else {
+                0.993
+            };
             for x in 0..width {
-                let dist_x = x.min(width - 1 - x);
-                let dist_y = y.min(height - 1 - y);
-                let edge = dist_x.min(dist_y);
-                if edge < margin {
-                    let factor = edge as f32 / margin as f32;
-                    damping[y * width + x] = 0.72 + 0.273 * factor;
-                }
+                // No margin on left and right (좌우 벽끝에서 튕기게, 마진 없이)
+                damping[y * width + x] = damp_y;
             }
         }
 
@@ -62,7 +64,7 @@ impl WaveSim {
                 if d2 <= r2 {
                     let nx = cx_i + dx;
                     let ny = cy_i + dy;
-                    if nx > 0 && nx < w - 1 && ny > 0 && ny < h - 1 {
+                    if nx >= 0 && nx < w && ny > 0 && ny < h - 1 {
                         let idx = (ny * w + nx) as usize;
                         let weight = (-d2 / (2.0 * (radius as f32 * 0.45).powi(2))).exp();
                         self.buf1[idx] += strength * weight;
@@ -78,10 +80,13 @@ impl WaveSim {
 
         for y in 1..(h - 1) {
             let row = y * w;
-            for x in 1..(w - 1) {
+            for x in 0..w {
                 let idx = row + x;
-                let sum = self.buf1[idx - 1]
-                    + self.buf1[idx + 1]
+                // Neumann boundary reflection on left (x=0) and right (x=w-1) walls (no margin)
+                let left = if x > 0 { self.buf1[idx - 1] } else { self.buf1[idx + 1] };
+                let right = if x < w - 1 { self.buf1[idx + 1] } else { self.buf1[idx - 1] };
+                let sum = left
+                    + right
                     + self.buf1[idx - w]
                     + self.buf1[idx + w];
 
@@ -95,12 +100,14 @@ impl WaveSim {
     }
 
     fn sample(&self, gx: f32, gy: f32) -> (f32, f32, f32) {
-        let x = (gx as usize).clamp(1, self.width - 2);
+        let x = (gx as usize).clamp(0, self.width - 1);
         let y = (gy as usize).clamp(1, self.height - 2);
         let idx = y * self.width + x;
 
         let height = self.buf1[idx];
-        let slope_x = (self.buf1[idx + 1] - self.buf1[idx - 1]) * 0.5;
+        let prev_x = if x > 0 { self.buf1[idx - 1] } else { self.buf1[idx] };
+        let next_x = if x < self.width - 1 { self.buf1[idx + 1] } else { self.buf1[idx] };
+        let slope_x = (next_x - prev_x) * 0.5;
         let slope_y = (self.buf1[idx + self.width] - self.buf1[idx - self.width]) * 0.5;
 
         (height, slope_x, slope_y)
@@ -112,11 +119,17 @@ impl WaveSim {
 
         for y in 1..(h - 1) {
             let row = y * w;
-            for x in 1..(w - 1) {
+            for x in 0..w {
                 let idx = row + x;
                 let px = idx * 4;
 
-                let dx = (self.buf1[idx + 1] - self.buf1[idx - 1]) * 0.5;
+                let dx = if x == 0 {
+                    self.buf1[idx + 1] - self.buf1[idx]
+                } else if x == w - 1 {
+                    self.buf1[idx] - self.buf1[idx - 1]
+                } else {
+                    (self.buf1[idx + 1] - self.buf1[idx - 1]) * 0.5
+                };
                 let dy = (self.buf1[idx + w] - self.buf1[idx - w]) * 0.5;
                 let val = self.buf1[idx];
 
@@ -829,33 +842,23 @@ pub fn Wave() -> impl IntoView {
                                                 height="154"
                                                 aria-label="나뭇잎"
                                             >
-                                                <defs>
-                                                    <linearGradient id="wave-leaf-grad-left" x1="0%" y1="0%" x2="0%" y2="100%">
-                                                        <stop offset="0%" stop-color="#91c34a"/>
-                                                        <stop offset="45%" stop-color="#6eb86a"/>
-                                                        <stop offset="100%" stop-color="#55a557"/>
-                                                    </linearGradient>
-                                                    <linearGradient id="wave-leaf-grad-right" x1="0%" y1="0%" x2="0%" y2="100%">
-                                                        <stop offset="0%" stop-color="#9ec854"/>
-                                                        <stop offset="45%" stop-color="#81bc6d"/>
-                                                        <stop offset="100%" stop-color="#6bb361"/>
-                                                    </linearGradient>
-                                                </defs>
+                                                // Outline-only minimalist leaf (no fill, thick stroke)
                                                 <path
-                                                    d="M 50 6 C 16 32, 16 108, 50 134 Z"
-                                                    fill="url(#wave-leaf-grad-left)"
-                                                />
-                                                <path
-                                                    d="M 50 6 C 84 32, 84 108, 50 134 Z"
-                                                    fill="url(#wave-leaf-grad-right)"
+                                                    d="M 50 6 C 16 32, 16 108, 50 134 C 84 108, 84 32, 50 6 Z"
+                                                    fill="none"
+                                                    stroke="#ffffff"
+                                                    stroke-width="3.8"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
                                                 />
                                                 <line
                                                     x1="50"
                                                     y1="6"
                                                     x2="50"
                                                     y2="134"
-                                                    stroke="rgba(255, 255, 255, 0.22)"
-                                                    stroke-width="1.0"
+                                                    stroke="#ffffff"
+                                                    stroke-width="3.2"
+                                                    stroke-linecap="round"
                                                 />
                                             </svg>
                                         </div>
