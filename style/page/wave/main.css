@@ -321,6 +321,32 @@ footer {
     transform: translateY(0);
 }
 
+.wave-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    pointer-events: none;
+    z-index: 4;
+    transition: opacity 0.3s ease;
+}
+
+.wave-prologue.promoted {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.wave-prologue.promoted .wave-prologue-inner {
+    pointer-events: none;
+}
+
 .wave-prologue.promoted .wave-question-slot {
     transform: none;
     transition: none;
@@ -330,7 +356,256 @@ footer {
 .wave-prologue.promoted .wave-turn,
 .wave-prologue.promoted .wave-ask {
     opacity: 0;
-    transform: translateY(-18px);
-    transition-delay: 0s !important;
+    transition: opacity 0.5s ease;
     pointer-events: none;
+}
+
+/* Scene 1 (Inside wave-slide-2) */
+.wave-scene-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.35s;
+}
+
+.wave-prologue.promoted .wave-scene-content {
+    opacity: 1;
+}
+
+.wave-scene-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    user-select: none;
+    pointer-events: none;
+}
+
+.wave-lead-text {
+    margin: 0;
+    font-size: clamp(22px, 3.4vw, 36px);
+    font-weight: 700;
+    line-height: 1.4;
+    color: #fff;
+    word-break: keep-all;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85);
+}
+
+.wave-sub-text {
+    margin: 0;
+    font-size: clamp(15px, 1.8vw, 19px);
+    font-weight: 400;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.72);
+    word-break: keep-all;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
+}
+
+.wave-hint-slot {
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 14px;
+}
+
+.wave-hint-text {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.42);
+    letter-spacing: 0.04em;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    user-select: none;
+    pointer-events: none;
+}
+
+.wave-hint-text.in {
+    opacity: 1;
+}
+
+.wave-scene-arrow {
+    position: absolute;
+    bottom: 38px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 22px;
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    user-select: none;
+    pointer-events: auto;
+    transition:
+        color 0.4s ease,
+        transform 0.4s ease,
+        text-shadow 0.4s ease;
+}
+
+.wave-scene-arrow-1 {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+    pointer-events: none;
+    transition:
+        opacity 0.6s ease,
+        transform 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+        color 0.4s ease,
+        text-shadow 0.4s ease;
+}
+
+.wave-scene-arrow-1.unlocked {
+    opacity: 0.55;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+
+.wave-scene-arrow-1.flash {
+    opacity: 1;
+    color: #fff;
+    transform: translateX(-50%) translateY(0) scale(1.3);
+    text-shadow: 0 0 16px rgba(180, 220, 255, 0.95), 0 0 32px rgba(120, 200, 255, 0.75);
+}
+
+/* Common Scene Section for Scene 2 & 3 */
+.wave-scene {
+    position: relative;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 0 clamp(16px, 5vw, 48px);
+    box-sizing: border-box;
+    z-index: 5;
+}
+
+/* Scene 2 (Leaf) */
+.wave-scene-2 {
+    perspective: 1000px;
+}
+
+.wave-leaf-stage {
+    margin: 40px 0 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    perspective: 800px;
+}
+
+.wave-leaf-anchor {
+    transform-style: preserve-3d;
+    will-change: transform;
+    transition: transform 0.05s linear;
+    cursor: pointer;
+    pointer-events: auto;
+    filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.85));
+}
+
+.wave-leaf-svg {
+    display: block;
+    user-select: none;
+    width: clamp(96px, 12vw, 140px);
+    height: auto;
+}
+
+.wave-reveal-text {
+    margin: 16px 0 0;
+    font-size: clamp(16px, 2vw, 21px);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+        opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+    word-break: keep-all;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85);
+}
+
+.wave-reveal-text.in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.wave-scene-arrow-2 {
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.3s,
+        transform 0.4s ease,
+        color 0.4s ease;
+}
+
+.wave-scene-arrow-2.in {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Scene 3 (Final Definition) */
+.wave-scene-3 {
+    padding-top: 100px;
+    padding-bottom: 140px;
+}
+
+.wave-final-box {
+    max-width: 600px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    gap: 32px;
+}
+
+.wave-body-line {
+    margin: 0;
+    font-size: clamp(16px, 1.6vw, 19px);
+    font-weight: 400;
+    line-height: 1.85;
+    color: rgba(255, 255, 255, 0.72);
+    word-break: keep-all;
+}
+
+.wave-core-statement {
+    padding: 24px 28px;
+    border-left: 2px solid rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.035);
+    border-radius: 0 8px 8px 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.wave-core-text {
+    margin: 0;
+    font-size: clamp(18px, 2.2vw, 24px);
+    font-weight: 700;
+    line-height: 1.55;
+    letter-spacing: -0.01em;
+    color: #fff;
+    word-break: keep-all;
+}
+
+.wave-definition {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.wave-def-title {
+    margin: 0 0 6px 0;
+    font-size: clamp(26px, 3.4vw, 38px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fff;
+    word-break: keep-all;
 }

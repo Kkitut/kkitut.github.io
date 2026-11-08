@@ -1,12 +1,149 @@
-use leptos::prelude::*;
+use leptos::{html::Canvas, prelude::*};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
 };
-use wasm_bindgen::{JsCast, closure::Closure};
+use wasm_bindgen::{closure::Closure, JsCast};
 
 const SPAN: f64 = 500.0;
 const SEGMENTS: usize = 220;
+
+const SIM_W: usize = 200;
+const SIM_H: usize = 130;
+
+struct WaveSim {
+    width: usize,
+    height: usize,
+    buf1: Vec<f32>,
+    buf2: Vec<f32>,
+    damping: Vec<f32>,
+    pixels: Vec<u8>,
+}
+
+impl WaveSim {
+    fn new(width: usize, height: usize) -> Self {
+        let size = width * height;
+        let margin = 14;
+        let mut damping = vec![0.993f32; size];
+
+        for y in 0..height {
+            for x in 0..width {
+                let dist_x = x.min(width - 1 - x);
+                let dist_y = y.min(height - 1 - y);
+                let edge = dist_x.min(dist_y);
+                if edge < margin {
+                    let factor = edge as f32 / margin as f32;
+                    damping[y * width + x] = 0.72 + 0.273 * factor;
+                }
+            }
+        }
+
+        Self {
+            width,
+            height,
+            buf1: vec![0.0; size],
+            buf2: vec![0.0; size],
+            damping,
+            pixels: vec![0; size * 4],
+        }
+    }
+
+    fn touch(&mut self, cx: usize, cy: usize, radius: usize, strength: f32) {
+        let r_i = radius as isize;
+        let w = self.width as isize;
+        let h = self.height as isize;
+        let cx_i = cx as isize;
+        let cy_i = cy as isize;
+
+        for dy in -r_i..=r_i {
+            for dx in -r_i..=r_i {
+                let d2 = (dx * dx + dy * dy) as f32;
+                let r2 = (radius * radius) as f32;
+                if d2 <= r2 {
+                    let nx = cx_i + dx;
+                    let ny = cy_i + dy;
+                    if nx > 0 && nx < w - 1 && ny > 0 && ny < h - 1 {
+                        let idx = (ny * w + nx) as usize;
+                        let weight = (-d2 / (2.0 * (radius as f32 * 0.45).powi(2))).exp();
+                        self.buf1[idx] += strength * weight;
+                    }
+                }
+            }
+        }
+    }
+
+    fn step(&mut self) {
+        let w = self.width;
+        let h = self.height;
+
+        for y in 1..(h - 1) {
+            let row = y * w;
+            for x in 1..(w - 1) {
+                let idx = row + x;
+                let sum = self.buf1[idx - 1]
+                    + self.buf1[idx + 1]
+                    + self.buf1[idx - w]
+                    + self.buf1[idx + w];
+
+                // alpha = 0.22 gives ~3x slower propagation speed
+                let next = 1.12 * self.buf1[idx] - self.buf2[idx] + 0.22 * sum;
+                self.buf2[idx] = next * self.damping[idx];
+            }
+        }
+
+        std::mem::swap(&mut self.buf1, &mut self.buf2);
+    }
+
+    fn sample(&self, gx: f32, gy: f32) -> (f32, f32, f32) {
+        let x = (gx as usize).clamp(1, self.width - 2);
+        let y = (gy as usize).clamp(1, self.height - 2);
+        let idx = y * self.width + x;
+
+        let height = self.buf1[idx];
+        let slope_x = (self.buf1[idx + 1] - self.buf1[idx - 1]) * 0.5;
+        let slope_y = (self.buf1[idx + self.width] - self.buf1[idx - self.width]) * 0.5;
+
+        (height, slope_x, slope_y)
+    }
+
+    fn render_to_pixels(&mut self) {
+        let w = self.width;
+        let h = self.height;
+
+        for y in 1..(h - 1) {
+            let row = y * w;
+            for x in 1..(w - 1) {
+                let idx = row + x;
+                let px = idx * 4;
+
+                let dx = (self.buf1[idx + 1] - self.buf1[idx - 1]) * 0.5;
+                let dy = (self.buf1[idx + w] - self.buf1[idx - w]) * 0.5;
+                let val = self.buf1[idx];
+
+                let grad_mag = (dx * dx + dy * dy).sqrt();
+                let highlight = (-0.4 * dx - 0.7 * dy).max(0.0) * 2.2;
+                let energy = (grad_mag * 0.055 + highlight * 0.05 + val.abs() * 0.007).clamp(0.0, 1.0);
+
+                if energy > 0.015 {
+                    let a = (energy * 230.0) as u8;
+                    let r = (energy * 180.0) as u8;
+                    let g = (energy * 225.0) as u8;
+                    let b = (energy * 255.0) as u8;
+
+                    self.pixels[px] = r;
+                    self.pixels[px + 1] = g;
+                    self.pixels[px + 2] = b;
+                    self.pixels[px + 3] = a;
+                } else {
+                    self.pixels[px] = 0;
+                    self.pixels[px + 1] = 0;
+                    self.pixels[px + 2] = 0;
+                    self.pixels[px + 3] = 0;
+                }
+            }
+        }
+    }
+}
 
 thread_local! {
     static WHEEL_CB: RefCell<Option<Closure<dyn FnMut(leptos::web_sys::WheelEvent)>>> =
@@ -62,17 +199,37 @@ pub fn Wave() -> impl IntoView {
     let (promote_u, set_promote_u) = signal(0.0f64);
     let (dot_gone, set_dot_gone) = signal(false);
 
+    // 2D Wave Equation Fluid Simulator
+    let sim: Rc<RefCell<WaveSim>> = Rc::new(RefCell::new(WaveSim::new(SIM_W, SIM_H)));
+    let canvas_ref = NodeRef::<Canvas>::new();
+    let (canvas_op, set_canvas_op) = signal(0.0f64);
+
+    // Scene 1: 10s idle hint and arrow unlock/flash
+    let (show_scene1_hint, set_show_scene1_hint) = signal(false);
+    let (has_clicked_scene1, set_has_clicked_scene1) = signal(false);
+    let (arrow1_unlocked, set_arrow1_unlocked) = signal(false);
+    let (arrow1_flash, set_arrow1_flash) = signal(false);
+    let last_a1_hit = Rc::new(Cell::new(0.0f64));
+
+    // Scene 2: Leaf 3D transform and bobbed state
+    let leaf_state = Rc::new(Cell::new((0.0f32, 0.0f32, 0.0f32)));
+    let (leaf_transform, set_leaf_transform) = signal(String::from("scale(1)"));
+    let (leaf_bobbed, set_leaf_bobbed) = signal(false);
+
+    // Smooth scroll control shared with click handlers
+    let (scroll_tgt, set_scroll_tgt) = signal(0.0f64);
+    let (scroll_wheeling, set_scroll_wheeling) = signal(false);
+
     let (raf_id, set_raf_id) = signal(None::<i32>);
+
+    let sim_effect = sim.clone();
 
     Effect::new(move |_| {
         let start = Rc::new(Cell::new(None::<f64>));
         let cur_scroll = Rc::new(Cell::new(window().scroll_y().unwrap_or(0.0)));
-        let tgt_scroll = Rc::new(Cell::new(cur_scroll.get()));
-        let wheeling = Rc::new(Cell::new(false));
+        set_scroll_tgt.set(cur_scroll.get());
 
-        let tgt_wheel = tgt_scroll.clone();
         let cur_wheel = cur_scroll.clone();
-        let wheeling_flag = wheeling.clone();
 
         let wheel_cb = Closure::<dyn FnMut(leptos::web_sys::WheelEvent)>::new(
             move |ev: leptos::web_sys::WheelEvent| {
@@ -88,15 +245,19 @@ pub fn Wave() -> impl IntoView {
                     .unwrap_or(0.0);
                 let max_scroll = (doc_h - vh).max(0.0);
 
-                if !wheeling_flag.get() {
+                // Lock scroll past Scene 1 until Arrow 1 is struck by a wave
+                let is_unlocked = arrow1_unlocked.get_untracked();
+                let max_allowed = if is_unlocked { max_scroll } else { vh };
+
+                if !scroll_wheeling.get_untracked() {
                     let sy = window().scroll_y().unwrap_or(0.0);
                     cur_wheel.set(sy);
-                    tgt_wheel.set(sy);
-                    wheeling_flag.set(true);
+                    set_scroll_tgt.set(sy);
+                    set_scroll_wheeling.set(true);
                 }
 
-                let next = (tgt_wheel.get() + ev.delta_y()).clamp(0.0, max_scroll);
-                tgt_wheel.set(next);
+                let next = (scroll_tgt.get_untracked() + ev.delta_y()).clamp(0.0, max_allowed);
+                set_scroll_tgt.set(next);
             },
         );
 
@@ -109,6 +270,10 @@ pub fn Wave() -> impl IntoView {
         );
         WHEEL_CB.with(|slot| *slot.borrow_mut() = Some(wheel_cb));
 
+        let sim_ref = sim_effect.clone();
+        let last_a1_hit_ref = last_a1_hit.clone();
+        let leaf_state_ref = leaf_state.clone();
+
         let cb: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
         let cb_clone = cb.clone();
 
@@ -120,9 +285,9 @@ pub fn Wave() -> impl IntoView {
             let t = (now - t0) * 0.001;
 
             // Smooth scroll interpolation
-            if wheeling.get() {
+            if scroll_wheeling.get_untracked() {
                 let c = cur_scroll.get();
-                let tg = tgt_scroll.get();
+                let tg = scroll_tgt.get_untracked();
                 let diff = tg - c;
                 if diff.abs() > 0.35 {
                     let next = c + diff * 0.12;
@@ -131,19 +296,20 @@ pub fn Wave() -> impl IntoView {
                 } else {
                     cur_scroll.set(tg);
                     window().scroll_to_with_x_and_y(0.0, tg);
-                    wheeling.set(false);
+                    set_scroll_wheeling.set(false);
                 }
             }
 
-            // Trigger prologue animation 0.3s after scrolling down by a full screen height (~100dvh)
+            let vh = window()
+                .inner_height()
+                .ok()
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1.0);
+            let cur_sy = window().scroll_y().unwrap_or(0.0);
+
+            // Trigger prologue animation when scrolling down by a full screen height (~100dvh)
             if !revealed.get_untracked() {
-                let vh = window()
-                    .inner_height()
-                    .ok()
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(1.0);
-                let sy = window().scroll_y().unwrap_or(0.0);
-                if sy >= vh * 0.94 {
+                if cur_sy >= vh * 0.94 {
                     let trigger_ms = reveal_at_ms.get_untracked().unwrap_or_else(|| {
                         let target = now + 300.0;
                         set_reveal_at_ms.set(Some(target));
@@ -155,7 +321,6 @@ pub fn Wave() -> impl IntoView {
                 }
             } else if !promoted.get_untracked() && !show_hint.get_untracked() {
                 if let Some(trigger_ms) = reveal_at_ms.get_untracked() {
-                    // 10s after "파동이라 함은 무엇일까." finishes appearing (2.75s delay + 0.95s anim + 10.0s = 13.7s)
                     if now - trigger_ms >= 13_700.0 {
                         set_show_hint.set(true);
                     }
@@ -172,10 +337,52 @@ pub fn Wave() -> impl IntoView {
                 if elapsed >= 1.15 && !dot_gone.get_untracked() {
                     set_dot_gone.set(true);
                 }
+
+                // Scene 1: 10s idle hint if user hasn't clicked yet
+                if !has_clicked_scene1.get_untracked() && !show_scene1_hint.get_untracked() {
+                    if elapsed >= 10.0 {
+                        set_show_scene1_hint.set(true);
+                    }
+                }
+
+                // Arrow 1 physical wave strike & unlock
+                let (a1_h, _, _) = sim_ref.borrow().sample((SIM_W / 2) as f32, (SIM_H - 14) as f32);
+                if a1_h.abs() > 2.6 {
+                    set_arrow1_flash.set(true);
+                    set_arrow1_unlocked.set(true);
+                    last_a1_hit_ref.set(now);
+                } else if now - last_a1_hit_ref.get() > 480.0 {
+                    set_arrow1_flash.set(false);
+                }
+
+                // Scene 2: Leaf pure physical response (no arbitrary shaking)
+                let (raw_h, raw_gx, raw_gy) = sim_ref.borrow().sample((SIM_W / 2) as f32, (SIM_H / 2) as f32);
+                let (prev_h, prev_gx, prev_gy) = leaf_state_ref.get();
+
+                let h = prev_h + (raw_h - prev_h) * 0.32;
+                let gx = prev_gx + (raw_gx - prev_gx) * 0.32;
+                let gy = prev_gy + (raw_gy - prev_gy) * 0.32;
+                leaf_state_ref.set((h, gx, gy));
+
+                let sc = (1.0 + h * 0.009).clamp(0.72, 1.45);
+                let rx = (-gy * 3.2).clamp(-30.0, 30.0);
+                let ry = (gx * 3.2).clamp(-30.0, 30.0);
+                let rz = ((gx - gy) * 0.9).clamp(-20.0, 20.0);
+
+                set_leaf_transform.set(format!(
+                    "scale({:.3}) rotateX({:.2}deg) rotateY({:.2}deg) rotateZ({:.2}deg)",
+                    sc, rx, ry, rz
+                ));
+
+                if raw_h.abs() > 3.0 || raw_gx.abs() > 1.2 || raw_gy.abs() > 1.2 {
+                    if !leaf_bobbed.get_untracked() {
+                        set_leaf_bobbed.set(true);
+                    }
+                }
             }
 
+            // Intro 2D Wave animation timings
             let base_r = 4.0;
-
             if t < 1.0 {
                 set_center_r.set(0.0);
                 set_center_op.set(0.0);
@@ -250,6 +457,44 @@ pub fn Wave() -> impl IntoView {
                 }
             }
 
+            // Canvas opacity: visible strictly over Scene 1 and Scene 2; invisible on 0장 and Scene 3
+            let canvas_target_op = if promoted.get_untracked() && cur_sy >= vh * 0.75 && cur_sy < vh * 2.85 {
+                let in_p = ((cur_sy - vh * 0.75) / (vh * 0.2)).clamp(0.0, 1.0);
+                let out_p = ((vh * 2.85 - cur_sy) / (vh * 0.25)).clamp(0.0, 1.0);
+                in_p.min(out_p)
+            } else {
+                0.0
+            };
+            set_canvas_op.set(canvas_target_op);
+
+            // 2D Wave equation simulation step & rendering to canvas
+            if let Some(canvas) = canvas_ref.get_untracked() {
+                if canvas.width() != SIM_W as u32 || canvas.height() != SIM_H as u32 {
+                    canvas.set_width(SIM_W as u32);
+                    canvas.set_height(SIM_H as u32);
+                }
+
+                if let Ok(Some(ctx_val)) = canvas.get_context("2d") {
+                    if let Ok(ctx) = ctx_val.dyn_into::<leptos::web_sys::CanvasRenderingContext2d>() {
+                        if promoted.get_untracked() {
+                            let mut s = sim_ref.borrow_mut();
+                            s.step();
+                            s.render_to_pixels();
+
+                            if let Ok(img_data) = leptos::web_sys::ImageData::new_with_u8_clamped_array_and_sh(
+                                wasm_bindgen::Clamped(&s.pixels),
+                                SIM_W as u32,
+                                SIM_H as u32,
+                            ) {
+                                let _ = ctx.put_image_data(&img_data, 0.0, 0.0);
+                            }
+                        } else {
+                            ctx.clear_rect(0.0, 0.0, SIM_W as f64, SIM_H as f64);
+                        }
+                    }
+                }
+            }
+
             if let Some(f) = cb_clone.borrow().as_ref() {
                 if let Ok(id) = window().request_animation_frame(f.as_ref().unchecked_ref()) {
                     set_raf_id.set(Some(id));
@@ -295,6 +540,43 @@ pub fn Wave() -> impl IntoView {
             set_promote_from.set((cur_cx - tgt_cx, cur_cy - tgt_cy));
         }
         set_promoted.set(true);
+    };
+
+    let on_pointer_down = {
+        let sim = sim.clone();
+        move |ev: leptos::web_sys::PointerEvent| {
+            if !promoted.get_untracked() {
+                return;
+            }
+            let sy = window().scroll_y().unwrap_or(0.0);
+            let vh = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(1.0);
+            let vw = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1.0);
+            let client_y = ev.client_y() as f64;
+            let world_y = client_y + sy;
+
+            // Only allow ripple clicks in Scene 1 ("파동이라 함은 무엇일까") and Scene 2 ("나뭇잎")
+            // Disallow Scene 0 (Intro: world_y < 1.0 * vh) and Scene 3 (본질: world_y >= 3.0 * vh)
+            if world_y < 1.0 * vh - 20.0 || world_y >= 3.0 * vh - 40.0 {
+                return;
+            }
+            if sy < 0.8 * vh || sy >= 2.9 * vh {
+                return;
+            }
+
+            let gx = ((ev.client_x() as f64 / vw) * SIM_W as f64).clamp(2.0, (SIM_W - 3) as f64) as usize;
+            let gy = ((client_y / vh) * SIM_H as f64).clamp(2.0, (SIM_H - 3) as f64) as usize;
+
+            sim.borrow_mut().touch(gx, gy, 4, 150.0);
+
+            set_has_clicked_scene1.set(true);
+            set_show_scene1_hint.set(false);
+        }
+    };
+
+    let scroll_to_y = move |factor: f64| {
+        let vh = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(1.0);
+        set_scroll_tgt.set(factor * vh);
+        set_scroll_wheeling.set(true);
     };
 
     let path_d = move || {
@@ -343,7 +625,13 @@ pub fn Wave() -> impl IntoView {
         <>
             <link rel="stylesheet" href="/style/page/wave/main.css"/>
 
-            <main class="wave-main">
+            <main class="wave-main" on:pointerdown=on_pointer_down>
+                <canvas
+                    node_ref=canvas_ref
+                    class="wave-canvas"
+                    style:opacity=move || format!("{:.3}", canvas_op.get())
+                />
+
                 <section class="wave-intro">
                     <svg
                         class="wave-stage"
@@ -471,7 +759,150 @@ pub fn Wave() -> impl IntoView {
                             </p>
                         </div>
                     </div>
+
+                    // Scene 1: 물 위를 건드리면..
+                    {move || {
+                        if promoted.get() {
+                            let on_arrow1_click = move |e: leptos::web_sys::MouseEvent| {
+                                e.stop_propagation();
+                                scroll_to_y(2.0);
+                            };
+
+                            view! {
+                                <div class="wave-scene-content wave-scene-1-content">
+                                    <div class="wave-scene-text">
+                                        <p class="wave-lead-text">"물 위를 건드리면.."</p>
+                                        <p class="wave-sub-text">"건드린 부분은 동심원을 그리며 물결이 퍼져나간다."</p>
+                                        <div class="wave-hint-slot">
+                                            <span
+                                                class="wave-hint-text"
+                                                class:in=move || show_scene1_hint.get()
+                                            >
+                                                "(클릭해봐요..!)"
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        class="wave-scene-arrow wave-scene-arrow-1"
+                                        class:unlocked=move || arrow1_unlocked.get()
+                                        class:flash=move || arrow1_flash.get()
+                                        on:click=on_arrow1_click
+                                        title="아래로 스크롤"
+                                    >
+                                        <span>"↓"</span>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! { <span/> }.into_any()
+                        }
+                    }}
                 </section>
+
+                // Subsequent scenes appear once promoted
+                {move || {
+                    if promoted.get() {
+                        let on_arrow2_click = move |e: leptos::web_sys::MouseEvent| {
+                            e.stop_propagation();
+                            scroll_to_y(3.0);
+                        };
+
+                        view! {
+                            <>
+                                // Scene 2: 나뭇잎 (Leaf)
+                                <section class="wave-scene wave-scene-2">
+                                    <div class="wave-scene-text">
+                                        <p class="wave-lead-text">"수면 위에 나뭇잎 하나가 떠 있다고 생각해보자"</p>
+                                        <p class="wave-sub-text">"물결이 지나갈 때 나뭇잎은 파도를 타고 저 멀리 떠내려갈까.."</p>
+                                    </div>
+
+                                    <div class="wave-leaf-stage">
+                                        <div
+                                            class="wave-leaf-anchor"
+                                            style:transform=move || leaf_transform.get()
+                                        >
+                                            <svg
+                                                class="wave-leaf-svg"
+                                                viewBox="0 0 100 140"
+                                                width="110"
+                                                height="154"
+                                                aria-label="나뭇잎"
+                                            >
+                                                <defs>
+                                                    <linearGradient id="wave-leaf-grad-left" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                        <stop offset="0%" stop-color="#91c34a"/>
+                                                        <stop offset="45%" stop-color="#6eb86a"/>
+                                                        <stop offset="100%" stop-color="#55a557"/>
+                                                    </linearGradient>
+                                                    <linearGradient id="wave-leaf-grad-right" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                        <stop offset="0%" stop-color="#9ec854"/>
+                                                        <stop offset="45%" stop-color="#81bc6d"/>
+                                                        <stop offset="100%" stop-color="#6bb361"/>
+                                                    </linearGradient>
+                                                </defs>
+                                                <path
+                                                    d="M 50 6 C 16 32, 16 108, 50 134 Z"
+                                                    fill="url(#wave-leaf-grad-left)"
+                                                />
+                                                <path
+                                                    d="M 50 6 C 84 32, 84 108, 50 134 Z"
+                                                    fill="url(#wave-leaf-grad-right)"
+                                                />
+                                                <line
+                                                    x1="50"
+                                                    y1="6"
+                                                    x2="50"
+                                                    y2="134"
+                                                    stroke="rgba(255, 255, 255, 0.22)"
+                                                    stroke-width="1.0"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
+
+                                    <p
+                                        class="wave-reveal-text"
+                                        class:in=move || leaf_bobbed.get()
+                                    >
+                                        "나뭇잎은 그저 제자리에서 위아래로 몇 번 출렁거릴 뿐이다."
+                                    </p>
+
+                                    <div
+                                        class="wave-scene-arrow wave-scene-arrow-2"
+                                        class:in=move || leaf_bobbed.get()
+                                        on:click=on_arrow2_click
+                                        title="아래로 스크롤"
+                                    >
+                                        <span>"↓"</span>
+                                    </div>
+                                </section>
+
+                                // Scene 3: 본질 (이것이 파동이다)
+                                <section class="wave-scene wave-scene-3">
+                                    <div class="wave-scene-text wave-final-box">
+                                        <p class="wave-body-line">"물도 제자리에서 흔들렸을 뿐이다."</p>
+                                        <p class="wave-lead-text">"하지만 무언가는 먼 위치로 거침없이 나아간다."</p>
+
+                                        <div class="wave-core-statement">
+                                            <p class="wave-core-text">
+                                                "물질은 움직이지 않았는데, 흔들림만이 공간을 넘어가는 것"
+                                            </p>
+                                        </div>
+
+                                        <div class="wave-definition">
+                                            <h2 class="wave-def-title">"이것이 파동이다."</h2>
+                                            <p class="wave-body-line">"질량 덩어리를 던지지 않고도"</p>
+                                            <p class="wave-body-line">"사건의 상태와 에너지를 저편으로 전달하는 것."</p>
+                                        </div>
+                                    </div>
+                                </section>
+                            </>
+                        }.into_any()
+                    } else {
+                        view! { <span/> }.into_any()
+                    }
+                }}
             </main>
         </>
     }
