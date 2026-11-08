@@ -889,6 +889,8 @@ pub fn Wave() -> impl IntoView {
                                             <p class="wave-body-line">"질량 덩어리를 던지지 않고도"</p>
                                             <p class="wave-body-line">"사건의 상태와 에너지를 저편으로 전달하는 것."</p>
                                         </div>
+
+                                        <p class="wave-wip-notice">"(아직 쓰는 중...)"</p>
                                     </div>
                                 </section>
                             </>

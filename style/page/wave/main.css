@@ -622,3 +622,12 @@ footer {
     color: #fff;
     word-break: keep-all;
 }
+
+.wave-wip-notice {
+    margin: 36px 0 0;
+    font-size: clamp(13px, 1.4vw, 15px);
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.35);
+    user-select: none;
+}
