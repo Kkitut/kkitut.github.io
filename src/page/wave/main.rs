@@ -876,7 +876,7 @@ pub fn Wave() -> impl IntoView {
                                 <section class="wave-scene wave-scene-3">
                                     <div class="wave-scene-text wave-final-box">
                                         <p class="wave-body-line">"물도 제자리에서 흔들렸을 뿐이다."</p>
-                                        <p class="wave-lead-text">"하지만 무언가는 먼 위치로 거침없이 나아간다."</p>
+                                        <p class="wave-lead-text">"하지만 무언가는 거침없이 나아간다."</p>
 
                                         <div class="wave-core-statement">
                                             <p class="wave-core-text">
@@ -886,8 +886,8 @@ pub fn Wave() -> impl IntoView {
 
                                         <div class="wave-definition">
                                             <h2 class="wave-def-title">"이것이 파동이다."</h2>
-                                            <p class="wave-body-line">"질량 덩어리를 던지지 않고도"</p>
-                                            <p class="wave-body-line">"사건의 상태와 에너지를 저편으로 전달하는 것."</p>
+                                            <p class="wave-body-line">"물리적인 이동 없이도"</p>
+                                            <p class="wave-body-line">"상태와 에너지를 저편으로 전달하는 것."</p>
                                         </div>
 
                                         <p class="wave-wip-notice">"(아직 쓰는 중...)"</p>
