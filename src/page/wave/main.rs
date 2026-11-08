@@ -8,8 +8,21 @@ use wasm_bindgen::{closure::Closure, JsCast};
 const SPAN: f64 = 500.0;
 const SEGMENTS: usize = 220;
 
-const SIM_W: usize = 180;
-const SIM_H: usize = 400;
+fn compute_sim_dimensions(vw: f64, vh: f64) -> (usize, usize) {
+    let safe_vw = vw.max(100.0);
+    let safe_vh = vh.max(100.0);
+    let target_cell_px = if safe_vw < 600.0 {
+        6.5
+    } else if safe_vw < 1200.0 {
+        8.5
+    } else {
+        10.5
+    };
+    let sim_w = (safe_vw / target_cell_px).round().clamp(48.0, 220.0) as usize;
+    let total_h = 4.0 * safe_vh;
+    let sim_h = (((total_h / safe_vw) * sim_w as f64).round()).clamp(100.0, 800.0) as usize;
+    (sim_w, sim_h)
+}
 
 struct WaveSim {
     width: usize,
@@ -23,7 +36,7 @@ struct WaveSim {
 impl WaveSim {
     fn new(width: usize, height: usize) -> Self {
         let size = width * height;
-        let margin_y = 16;
+        let margin_y = (height / 25).max(12);
         let mut damping = vec![0.994f32; size];
 
         for y in 0..height {
@@ -48,6 +61,13 @@ impl WaveSim {
             damping,
             pixels: vec![0; size * 4],
         }
+    }
+
+    fn ensure_size(&mut self, width: usize, height: usize) {
+        if self.width == width && self.height == height {
+            return;
+        }
+        *self = WaveSim::new(width, height);
     }
 
     fn touch(&mut self, cx: usize, cy: usize, radius: usize, strength: f32) {
@@ -213,7 +233,12 @@ pub fn Wave() -> impl IntoView {
     let (dot_gone, set_dot_gone) = signal(false);
 
     // 2D Wave Equation Fluid Simulator
-    let sim: Rc<RefCell<WaveSim>> = Rc::new(RefCell::new(WaveSim::new(SIM_W, SIM_H)));
+    let (init_w, init_h) = {
+        let vw = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1200.0);
+        let vh = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(800.0);
+        compute_sim_dimensions(vw, vh)
+    };
+    let sim: Rc<RefCell<WaveSim>> = Rc::new(RefCell::new(WaveSim::new(init_w, init_h)));
     let canvas_ref = NodeRef::<Canvas>::new();
     let (show_scene1_content, set_show_scene1_content) = signal(false);
 
@@ -366,8 +391,24 @@ pub fn Wave() -> impl IntoView {
                     }
                 }
 
-                // Arrow 1 physical wave strike & unlock (at bottom of Section 2: y = 194.0)
-                let (a1_h, _, _) = sim_ref.borrow().sample(SIM_W as f32 * 0.5, 194.0);
+                let vw = window()
+                    .inner_width()
+                    .ok()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1200.0);
+                let total_h = 4.0 * vh;
+
+                let (target_w, target_h) = compute_sim_dimensions(vw, vh);
+                sim_ref.borrow_mut().ensure_size(target_w, target_h);
+
+                let (sw, sh) = {
+                    let s = sim_ref.borrow();
+                    (s.width, s.height)
+                };
+
+                // Arrow 1 physical wave strike & unlock (at bottom of Section 2: y = 2.0 * vh - 48.0)
+                let arrow1_y = ((2.0 * vh - 48.0) / total_h * sh as f64).clamp(0.0, (sh - 1) as f64) as f32;
+                let (a1_h, _, _) = sim_ref.borrow().sample(sw as f32 * 0.5, arrow1_y);
                 if a1_h.abs() > 2.0 {
                     set_arrow1_flash.set(true);
                     set_arrow1_unlocked.set(true);
@@ -376,8 +417,9 @@ pub fn Wave() -> impl IntoView {
                     set_arrow1_flash.set(false);
                 }
 
-                // Scene 2: Leaf pure physical response (centered in Section 3: y = 250.0)
-                let (raw_h, raw_gx, raw_gy) = sim_ref.borrow().sample(SIM_W as f32 * 0.5, 250.0);
+                // Scene 2: Leaf pure physical response (centered in Section 3: y = 2.5 * vh)
+                let leaf_y = (0.625 * sh as f64).clamp(0.0, (sh - 1) as f64) as f32;
+                let (raw_h, raw_gx, raw_gy) = sim_ref.borrow().sample(sw as f32 * 0.5, leaf_y);
                 let (prev_h, prev_gx, prev_gy) = leaf_state_ref.get();
 
                 let h = prev_h + (raw_h - prev_h) * 0.32;
@@ -482,9 +524,14 @@ pub fn Wave() -> impl IntoView {
 
             // 2D Wave equation simulation step & rendering to canvas
             if let Some(canvas) = canvas_ref.get_untracked() {
-                if canvas.width() != SIM_W as u32 || canvas.height() != SIM_H as u32 {
-                    canvas.set_width(SIM_W as u32);
-                    canvas.set_height(SIM_H as u32);
+                let (sw, sh) = {
+                    let s = sim_ref.borrow();
+                    (s.width as u32, s.height as u32)
+                };
+
+                if canvas.width() != sw || canvas.height() != sh {
+                    canvas.set_width(sw);
+                    canvas.set_height(sh);
                 }
 
                 if let Ok(Some(ctx_val)) = canvas.get_context("2d") {
@@ -496,13 +543,13 @@ pub fn Wave() -> impl IntoView {
 
                             if let Ok(img_data) = leptos::web_sys::ImageData::new_with_u8_clamped_array_and_sh(
                                 wasm_bindgen::Clamped(&s.pixels),
-                                SIM_W as u32,
-                                SIM_H as u32,
+                                sw,
+                                sh,
                             ) {
                                 let _ = ctx.put_image_data(&img_data, 0.0, 0.0);
                             }
                         } else {
-                            ctx.clear_rect(0.0, 0.0, SIM_W as f64, SIM_H as f64);
+                            ctx.clear_rect(0.0, 0.0, sw as f64, sh as f64);
                         }
                     }
                 }
@@ -573,8 +620,12 @@ pub fn Wave() -> impl IntoView {
             }
 
             let total_h = 4.0 * vh;
-            let gx = ((ev.client_x() as f64 / vw) * SIM_W as f64).clamp(0.0, (SIM_W - 1) as f64) as usize;
-            let gy = ((world_y / total_h) * SIM_H as f64).clamp(0.0, (SIM_H - 1) as f64) as usize;
+            let (sw, sh) = {
+                let s = sim.borrow();
+                (s.width, s.height)
+            };
+            let gx = ((ev.client_x() as f64 / vw) * sw as f64).clamp(0.0, (sw - 1) as f64) as usize;
+            let gy = ((world_y / total_h) * sh as f64).clamp(0.0, (sh - 1) as f64) as usize;
 
             sim.borrow_mut().touch(gx, gy, 4, 150.0);
 
@@ -901,5 +952,38 @@ pub fn Wave() -> impl IntoView {
                 }}
             </main>
         </>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_isotropic_grid_aspect_ratio() {
+        let screens = [
+            (390.0, 844.0),   // iPhone 14 / portrait mobile
+            (360.0, 800.0),   // Android portrait mobile
+            (768.0, 1024.0),  // iPad portrait
+            (1024.0, 768.0),  // iPad landscape
+            (1920.0, 1080.0), // 16:9 desktop
+            (2560.0, 1440.0), // 1440p desktop
+            (1000.0, 1000.0), // 1:1 square
+            (800.0, 1200.0),  // Narrow desktop window
+        ];
+
+        for (vw, vh) in screens {
+            let total_h = 4.0 * vh;
+            let (sw, sh) = compute_sim_dimensions(vw, vh);
+
+            let cell_w = vw / sw as f64;
+            let cell_h = total_h / sh as f64;
+            let ratio = cell_h / cell_w;
+
+            assert!(
+                (ratio - 1.0).abs() < 0.015,
+                "Screen {vw}x{vh} produced anisotropic ratio {ratio:.4} (sw={sw}, sh={sh})"
+            );
+        }
     }
 }
