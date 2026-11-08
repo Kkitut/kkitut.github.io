@@ -8,8 +8,8 @@ use wasm_bindgen::{closure::Closure, JsCast};
 const SPAN: f64 = 500.0;
 const SEGMENTS: usize = 220;
 
-const SIM_W: usize = 200;
-const SIM_H: usize = 130;
+const SIM_W: usize = 180;
+const SIM_H: usize = 400;
 
 struct WaveSim {
     width: usize,
@@ -23,16 +23,16 @@ struct WaveSim {
 impl WaveSim {
     fn new(width: usize, height: usize) -> Self {
         let size = width * height;
-        let margin = 14;
-        let mut damping = vec![0.993f32; size];
+        let margin_y = 16;
+        let mut damping = vec![0.994f32; size];
 
         for y in 0..height {
             let dist_y = y.min(height - 1 - y);
-            let damp_y = if dist_y < margin {
-                let factor = dist_y as f32 / margin as f32;
-                0.78 + 0.213 * factor
+            let damp_y = if dist_y < margin_y {
+                let factor = dist_y as f32 / margin_y as f32;
+                0.75 + 0.244 * factor
             } else {
-                0.993
+                0.994
             };
             for x in 0..width {
                 // No margin on left and right (좌우 벽끝에서 튕기게, 마진 없이)
@@ -215,7 +215,7 @@ pub fn Wave() -> impl IntoView {
     // 2D Wave Equation Fluid Simulator
     let sim: Rc<RefCell<WaveSim>> = Rc::new(RefCell::new(WaveSim::new(SIM_W, SIM_H)));
     let canvas_ref = NodeRef::<Canvas>::new();
-    let (canvas_op, set_canvas_op) = signal(0.0f64);
+    let (show_scene1_content, set_show_scene1_content) = signal(false);
 
     // Scene 1: 10s idle hint and arrow unlock/flash
     let (show_scene1_hint, set_show_scene1_hint) = signal(false);
@@ -351,16 +351,24 @@ pub fn Wave() -> impl IntoView {
                     set_dot_gone.set(true);
                 }
 
-                // Scene 1: 10s idle hint if user hasn't clicked yet
-                if !has_clicked_scene1.get_untracked() && !show_scene1_hint.get_untracked() {
-                    if elapsed >= 10.0 {
+                // Show "물 위를 건드리면.." strictly after title movement finishes (1.05s)
+                if elapsed >= 1.05 && !show_scene1_content.get_untracked() {
+                    set_show_scene1_content.set(true);
+                }
+
+                // Scene 1: 10s idle hint if user hasn't clicked yet after scene 1 content appeared
+                if show_scene1_content.get_untracked()
+                    && !has_clicked_scene1.get_untracked()
+                    && !show_scene1_hint.get_untracked()
+                {
+                    if elapsed >= 11.05 {
                         set_show_scene1_hint.set(true);
                     }
                 }
 
-                // Arrow 1 physical wave strike & unlock
-                let (a1_h, _, _) = sim_ref.borrow().sample((SIM_W / 2) as f32, (SIM_H - 14) as f32);
-                if a1_h.abs() > 2.6 {
+                // Arrow 1 physical wave strike & unlock (at bottom of Section 2: y = 194.0)
+                let (a1_h, _, _) = sim_ref.borrow().sample(SIM_W as f32 * 0.5, 194.0);
+                if a1_h.abs() > 2.0 {
                     set_arrow1_flash.set(true);
                     set_arrow1_unlocked.set(true);
                     last_a1_hit_ref.set(now);
@@ -368,8 +376,8 @@ pub fn Wave() -> impl IntoView {
                     set_arrow1_flash.set(false);
                 }
 
-                // Scene 2: Leaf pure physical response (no arbitrary shaking)
-                let (raw_h, raw_gx, raw_gy) = sim_ref.borrow().sample((SIM_W / 2) as f32, (SIM_H / 2) as f32);
+                // Scene 2: Leaf pure physical response (centered in Section 3: y = 250.0)
+                let (raw_h, raw_gx, raw_gy) = sim_ref.borrow().sample(SIM_W as f32 * 0.5, 250.0);
                 let (prev_h, prev_gx, prev_gy) = leaf_state_ref.get();
 
                 let h = prev_h + (raw_h - prev_h) * 0.32;
@@ -377,17 +385,17 @@ pub fn Wave() -> impl IntoView {
                 let gy = prev_gy + (raw_gy - prev_gy) * 0.32;
                 leaf_state_ref.set((h, gx, gy));
 
-                let sc = (1.0 + h * 0.009).clamp(0.72, 1.45);
-                let rx = (-gy * 3.2).clamp(-30.0, 30.0);
-                let ry = (gx * 3.2).clamp(-30.0, 30.0);
-                let rz = ((gx - gy) * 0.9).clamp(-20.0, 20.0);
+                let sc = (1.0 + h * 0.012).clamp(0.72, 1.45);
+                let rx = (-gy * 3.8).clamp(-30.0, 30.0);
+                let ry = (gx * 3.8).clamp(-30.0, 30.0);
+                let rz = ((gx - gy) * 1.0).clamp(-20.0, 20.0);
 
                 set_leaf_transform.set(format!(
                     "scale({:.3}) rotateX({:.2}deg) rotateY({:.2}deg) rotateZ({:.2}deg)",
                     sc, rx, ry, rz
                 ));
 
-                if raw_h.abs() > 3.0 || raw_gx.abs() > 1.2 || raw_gy.abs() > 1.2 {
+                if raw_h.abs() > 2.0 || raw_gx.abs() > 0.8 || raw_gy.abs() > 0.8 {
                     if !leaf_bobbed.get_untracked() {
                         set_leaf_bobbed.set(true);
                     }
@@ -469,16 +477,6 @@ pub fn Wave() -> impl IntoView {
                     }
                 }
             }
-
-            // Canvas opacity: visible strictly over Scene 1 and Scene 2; invisible on 0장 and Scene 3
-            let canvas_target_op = if promoted.get_untracked() && cur_sy >= vh * 0.75 && cur_sy < vh * 2.85 {
-                let in_p = ((cur_sy - vh * 0.75) / (vh * 0.2)).clamp(0.0, 1.0);
-                let out_p = ((vh * 2.85 - cur_sy) / (vh * 0.25)).clamp(0.0, 1.0);
-                in_p.min(out_p)
-            } else {
-                0.0
-            };
-            set_canvas_op.set(canvas_target_op);
 
             // 2D Wave equation simulation step & rendering to canvas
             if let Some(canvas) = canvas_ref.get_untracked() {
@@ -567,17 +565,14 @@ pub fn Wave() -> impl IntoView {
             let client_y = ev.client_y() as f64;
             let world_y = client_y + sy;
 
-            // Only allow ripple clicks in Scene 1 ("파동이라 함은 무엇일까") and Scene 2 ("나뭇잎")
-            // Disallow Scene 0 (Intro: world_y < 1.0 * vh) and Scene 3 (본질: world_y >= 3.0 * vh)
-            if world_y < 1.0 * vh - 20.0 || world_y >= 3.0 * vh - 40.0 {
-                return;
-            }
-            if sy < 0.8 * vh || sy >= 2.9 * vh {
+            // Only allow ripple clicks in Part 2 ("물 위를 건드리면..") and Part 3 ("나뭇잎")
+            if world_y < 1.0 * vh - 20.0 || world_y >= 3.0 * vh - 20.0 {
                 return;
             }
 
-            let gx = ((ev.client_x() as f64 / vw) * SIM_W as f64).clamp(2.0, (SIM_W - 3) as f64) as usize;
-            let gy = ((client_y / vh) * SIM_H as f64).clamp(2.0, (SIM_H - 3) as f64) as usize;
+            let total_h = 4.0 * vh;
+            let gx = ((ev.client_x() as f64 / vw) * SIM_W as f64).clamp(0.0, (SIM_W - 1) as f64) as usize;
+            let gy = ((world_y / total_h) * SIM_H as f64).clamp(0.0, (SIM_H - 1) as f64) as usize;
 
             sim.borrow_mut().touch(gx, gy, 4, 150.0);
 
@@ -642,7 +637,7 @@ pub fn Wave() -> impl IntoView {
                 <canvas
                     node_ref=canvas_ref
                     class="wave-canvas"
-                    style:opacity=move || format!("{:.3}", canvas_op.get())
+                    class:active=move || promoted.get()
                 />
 
                 <section class="wave-intro">
@@ -782,7 +777,10 @@ pub fn Wave() -> impl IntoView {
                             };
 
                             view! {
-                                <div class="wave-scene-content wave-scene-1-content">
+                                <div
+                                    class="wave-scene-content wave-scene-1-content"
+                                    class:in=move || show_scene1_content.get()
+                                >
                                     <div class="wave-scene-text">
                                         <p class="wave-lead-text">"물 위를 건드리면.."</p>
                                         <p class="wave-sub-text">"건드린 부분은 동심원을 그리며 물결이 퍼져나간다."</p>
