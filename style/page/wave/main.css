@@ -510,16 +510,15 @@ footer {
     display: flex;
     justify-content: center;
     align-items: center;
-    perspective: 800px;
+    perspective: 700px;
+    transform-style: preserve-3d;
 }
 
 .wave-leaf-anchor {
     transform-style: preserve-3d;
     will-change: transform;
-    transition: transform 0.05s linear;
     cursor: pointer;
     pointer-events: auto;
-    filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.85));
 }
 
 .wave-leaf-svg {
@@ -527,6 +526,7 @@ footer {
     user-select: none;
     width: clamp(96px, 12vw, 140px);
     height: auto;
+    filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.85));
 }
 
 .wave-reveal-text {

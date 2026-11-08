@@ -385,14 +385,16 @@ pub fn Wave() -> impl IntoView {
                 let gy = prev_gy + (raw_gy - prev_gy) * 0.32;
                 leaf_state_ref.set((h, gx, gy));
 
-                let sc = (1.0 + h * 0.012).clamp(0.72, 1.45);
-                let rx = (-gy * 3.8).clamp(-30.0, 30.0);
-                let ry = (gx * 3.8).clamp(-30.0, 30.0);
-                let rz = ((gx - gy) * 1.0).clamp(-20.0, 20.0);
+                let tz = (h * 1.5).clamp(-55.0, 65.0);
+                let tx = (gx * 1.8).clamp(-22.0, 22.0);
+                let ty = (gy * 1.8).clamp(-22.0, 22.0);
+                let rx = (-gy * 3.2).clamp(-42.0, 42.0);
+                let ry = (gx * 3.2).clamp(-42.0, 42.0);
+                let rz = ((gx - gy) * 1.2).clamp(-30.0, 30.0);
 
                 set_leaf_transform.set(format!(
-                    "scale({:.3}) rotateX({:.2}deg) rotateY({:.2}deg) rotateZ({:.2}deg)",
-                    sc, rx, ry, rz
+                    "translate3d({:.1}px, {:.1}px, {:.1}px) rotateX({:.2}deg) rotateY({:.2}deg) rotateZ({:.2}deg)",
+                    tx, ty, tz, rx, ry, rz
                 ));
 
                 if raw_h.abs() > 2.0 || raw_gx.abs() > 0.8 || raw_gy.abs() > 0.8 {
@@ -840,23 +842,14 @@ pub fn Wave() -> impl IntoView {
                                                 height="154"
                                                 aria-label="나뭇잎"
                                             >
-                                                // Outline-only minimalist leaf (no fill, thick stroke)
+                                                // Outline-only minimalist leaf (no fill, no center line, bold stroke)
                                                 <path
                                                     d="M 50 6 C 16 32, 16 108, 50 134 C 84 108, 84 32, 50 6 Z"
                                                     fill="none"
                                                     stroke="#ffffff"
-                                                    stroke-width="3.8"
+                                                    stroke-width="4.0"
                                                     stroke-linecap="round"
                                                     stroke-linejoin="round"
-                                                />
-                                                <line
-                                                    x1="50"
-                                                    y1="6"
-                                                    x2="50"
-                                                    y2="134"
-                                                    stroke="#ffffff"
-                                                    stroke-width="3.2"
-                                                    stroke-linecap="round"
                                                 />
                                             </svg>
                                         </div>
