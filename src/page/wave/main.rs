@@ -16,19 +16,20 @@ use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 const SPAN: f64 = 500.0;
 const SEGMENTS: usize = 220;
 
-fn compute_sim_dimensions(vw: f64, vh: f64) -> (usize, usize) {
+fn compute_sim_dimensions(vw: f64, vh: f64, scale: f64) -> (usize, usize) {
     let safe_vw = vw.max(100.0);
     let safe_vh = vh.max(100.0);
-    let target_cell_px = if safe_vw < 600.0 {
-        6.5
+    let base_cell_px = if safe_vw < 600.0 {
+        2.4
     } else if safe_vw < 1200.0 {
-        8.5
+        2.8
     } else {
-        10.5
+        3.2
     };
-    let sim_w = (safe_vw / target_cell_px).round().clamp(48.0, 220.0) as usize;
+    let cell_px = base_cell_px / scale.clamp(0.4, 1.0);
+    let sim_w = (safe_vw / cell_px).round().clamp(100.0, 500.0) as usize;
     let total_h = 4.0 * safe_vh;
-    let sim_h = (((total_h / safe_vw) * sim_w as f64).round()).clamp(100.0, 800.0) as usize;
+    let sim_h = ((total_h / safe_vw) * sim_w as f64).round() as usize;
     (sim_w, sim_h)
 }
 
@@ -45,15 +46,15 @@ impl WaveSim {
     fn new(width: usize, height: usize) -> Self {
         let size = width * height;
         let margin_y = (height / 25).max(12);
-        let mut damping = vec![0.994f32; size];
+        let mut damping = vec![0.9987f32; size];
 
         for y in 0..height {
             let dist_y = y.min(height - 1 - y);
             let damp_y = if dist_y < margin_y {
                 let factor = dist_y as f32 / margin_y as f32;
-                0.75 + 0.244 * factor
+                0.90 + 0.0987 * factor
             } else {
-                0.994
+                0.9987
             };
             for x in 0..width {
                 // No margin on left and right (좌우 벽끝에서 튕기게, 마진 없이)
@@ -71,11 +72,44 @@ impl WaveSim {
         }
     }
 
-    fn ensure_size(&mut self, width: usize, height: usize) {
-        if self.width == width && self.height == height {
+    fn resize(&mut self, new_w: usize, new_h: usize) {
+        if self.width == new_w && self.height == new_h {
             return;
         }
-        *self = WaveSim::new(width, height);
+        let mut new_buf1 = vec![0.0f32; new_w * new_h];
+        let mut new_buf2 = vec![0.0f32; new_w * new_h];
+        let sx = self.width as f32 / new_w as f32;
+        let sy = self.height as f32 / new_h as f32;
+        for y in 0..new_h {
+            let old_y = ((y as f32 * sy) as usize).min(self.height - 1);
+            let old_row = old_y * self.width;
+            let new_row = y * new_w;
+            for x in 0..new_w {
+                let old_x = ((x as f32 * sx) as usize).min(self.width - 1);
+                new_buf1[new_row + x] = self.buf1[old_row + old_x];
+                new_buf2[new_row + x] = self.buf2[old_row + old_x];
+            }
+        }
+        let margin_y = (new_h / 25).max(12);
+        let mut damping = vec![0.9987f32; new_w * new_h];
+        for y in 0..new_h {
+            let dist_y = y.min(new_h - 1 - y);
+            let damp_y = if dist_y < margin_y {
+                let factor = dist_y as f32 / margin_y as f32;
+                0.90 + 0.0987 * factor
+            } else {
+                0.9987
+            };
+            for x in 0..new_w {
+                damping[y * new_w + x] = damp_y;
+            }
+        }
+        self.width = new_w;
+        self.height = new_h;
+        self.buf1 = new_buf1;
+        self.buf2 = new_buf2;
+        self.damping = damping;
+        self.pixels = vec![0; new_w * new_h * 4];
     }
 
     fn touch(&mut self, cx: usize, cy: usize, radius: usize, strength: f32) {
@@ -118,8 +152,8 @@ impl WaveSim {
                     + self.buf1[idx - w]
                     + self.buf1[idx + w];
 
-                // alpha = 0.22 gives ~3x slower propagation speed
-                let next = 1.12 * self.buf1[idx] - self.buf2[idx] + 0.22 * sum;
+                // alpha = 0.44 gives 2x faster propagation speed with full CFL stability
+                let next = 0.24 * self.buf1[idx] - self.buf2[idx] + 0.44 * sum;
                 self.buf2[idx] = next * self.damping[idx];
             }
         }
@@ -159,14 +193,14 @@ impl WaveSim {
                     (self.buf1[idx + 1] - self.buf1[idx - 1]) * 0.5
                 };
                 let dy = (self.buf1[idx + w] - self.buf1[idx - w]) * 0.5;
-                let val = self.buf1[idx];
 
                 let grad_mag = (dx * dx + dy * dy).sqrt();
-                let highlight = (-0.4 * dx - 0.7 * dy).max(0.0) * 2.2;
-                let energy = (grad_mag * 0.055 + highlight * 0.05 + val.abs() * 0.007).clamp(0.0, 1.0);
+                let highlight = (-0.4 * dx - 0.7 * dy).max(0.0) * 2.5;
+                // Clean edge Fresnel reflection (sharp, transparent water wave rings)
+                let energy = (grad_mag * 0.08 + highlight * 0.07).clamp(0.0, 1.0);
 
-                if energy > 0.015 {
-                    let a = (energy * 230.0) as u8;
+                if energy > 0.008 {
+                    let a = (energy * 240.0) as u8;
                     let r = (energy * 180.0) as u8;
                     let g = (energy * 225.0) as u8;
                     let b = (energy * 255.0) as u8;
@@ -419,7 +453,7 @@ pub fn Wave() -> impl IntoView {
     let (init_w, init_h) = {
         let vw = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1200.0);
         let vh = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(800.0);
-        compute_sim_dimensions(vw, vh)
+        compute_sim_dimensions(vw, vh, 1.0)
     };
     let sim: Rc<RefCell<WaveSim>> = Rc::new(RefCell::new(WaveSim::new(init_w, init_h)));
     let canvas_ref = NodeRef::<Canvas>::new();
@@ -498,11 +532,15 @@ pub fn Wave() -> impl IntoView {
         let gl_ref = gl_state.clone();
         let last_t = Rc::new(Cell::new(0.0f64));
         let sim_acc = Rc::new(Cell::new(0.0f64));
+        let res_scale = Rc::new(Cell::new(1.0f64));
+        let frame_work_ema = Rc::new(Cell::new(2.0f64));
+        let frame_counter = Rc::new(Cell::new(0usize));
 
         let cb: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
         let cb_clone = cb.clone();
 
         *cb.borrow_mut() = Some(Closure::new(move |now: f64| {
+            let work_start = js_sys::Date::now();
             let t0 = start.get().unwrap_or_else(|| {
                 start.set(Some(now));
                 now
@@ -594,28 +632,31 @@ pub fn Wave() -> impl IntoView {
                     .unwrap_or(1200.0);
                 let total_h = 4.0 * vh;
 
-                let (target_w, target_h) = compute_sim_dimensions(vw, vh);
-                sim_ref.borrow_mut().ensure_size(target_w, target_h);
-
-                const SIM_DT: f64 = 1.0 / 60.0;
-                let acc = sim_acc.get() + dt;
-                let mut rem = acc;
-                let mut steps = 0;
-                {
-                    let mut s = sim_ref.borrow_mut();
-                    while rem >= SIM_DT && steps < 8 {
-                        s.step();
-                        rem -= SIM_DT;
-                        steps += 1;
-                    }
-                    s.render_to_pixels();
-                }
-                sim_acc.set(rem);
+                let (target_w, target_h) = compute_sim_dimensions(vw, vh, res_scale.get());
+                sim_ref.borrow_mut().resize(target_w, target_h);
 
                 let (sw, sh) = {
                     let s = sim_ref.borrow();
                     (s.width, s.height)
                 };
+                let cell_px = vw / sw as f64;
+
+                // 2x wave speed: 600 px/s physical propagation
+                // Advance per step = sqrt(0.44) * cell_px = 0.6633 * cell_px
+                let sim_dt = (cell_px * 0.6633 / 600.0).clamp(0.001, 0.02);
+                let acc = sim_acc.get() + dt;
+                let mut rem = acc;
+                let mut steps = 0;
+                {
+                    let mut s = sim_ref.borrow_mut();
+                    while rem >= sim_dt && steps < 12 {
+                        s.step();
+                        rem -= sim_dt;
+                        steps += 1;
+                    }
+                    s.render_to_pixels();
+                }
+                sim_acc.set(rem);
 
                 // Arrow 1 physical wave strike & unlock (at bottom of Section 2: y = 2.0 * vh - 48.0)
                 let arrow1_y = ((2.0 * vh - 48.0) / total_h * sh as f64).clamp(0.0, (sh - 1) as f64) as f32;
@@ -635,8 +676,9 @@ pub fn Wave() -> impl IntoView {
 
                 let lerp_k = (1.0 - (-23.0 * dt).exp()).clamp(0.0, 1.0) as f32;
                 let h = prev_h + (raw_h - prev_h) * lerp_k;
-                let gx = prev_gx + (raw_gx - prev_gx) * lerp_k;
-                let gy = prev_gy + (raw_gy - prev_gy) * lerp_k;
+                let slope_factor = (8.5 / cell_px) as f32;
+                let gx = prev_gx + (raw_gx * slope_factor - prev_gx) * lerp_k;
+                let gy = prev_gy + (raw_gy * slope_factor - prev_gy) * lerp_k;
                 leaf_state_ref.set((h, gx, gy));
 
                 let tz = (h * 1.5).clamp(-55.0, 65.0);
@@ -763,6 +805,24 @@ pub fn Wave() -> impl IntoView {
                 }
             }
 
+            let work_end = js_sys::Date::now();
+            let work_ms = (work_end - work_start).max(0.0);
+            let cur_ema = frame_work_ema.get() * 0.92 + work_ms * 0.08;
+            frame_work_ema.set(cur_ema);
+
+            let cnt = frame_counter.get() + 1;
+            frame_counter.set(cnt);
+            // 120fps budget is 8.33ms. Adapt resolution targeting 120fps every 30 frames
+            if cnt >= 30 {
+                frame_counter.set(0);
+                let cur_scale = res_scale.get();
+                if cur_ema > 6.2 && cur_scale > 0.45 {
+                    res_scale.set((cur_scale - 0.1).max(0.45));
+                } else if cur_ema < 3.2 && cur_scale < 1.0 {
+                    res_scale.set((cur_scale + 0.05).min(1.0));
+                }
+            }
+
             if let Some(f) = cb_clone.borrow().as_ref() {
                 if let Ok(id) = window().request_animation_frame(f.as_ref().unchecked_ref()) {
                     set_raf_id.set(Some(id));
@@ -799,10 +859,12 @@ pub fn Wave() -> impl IntoView {
                 let s = sim.borrow();
                 (s.width, s.height)
             };
+            let cell_px = vw / sw as f64;
             let gx = ((ev.client_x() as f64 / vw) * sw as f64).clamp(0.0, (sw - 1) as f64) as usize;
             let gy = ((world_y / total_h) * sh as f64).clamp(0.0, (sh - 1) as f64) as usize;
 
-            sim.borrow_mut().touch(gx, gy, 4, 150.0);
+            let r_cells = (36.0 / cell_px).round().clamp(4.0, 24.0) as usize;
+            sim.borrow_mut().touch(gx, gy, r_cells, 180.0);
 
             set_has_clicked_scene1.set(true);
             set_show_scene1_hint.set(false);
@@ -1183,7 +1245,7 @@ mod tests {
 
         for (vw, vh) in screens {
             let total_h = 4.0 * vh;
-            let (sw, sh) = compute_sim_dimensions(vw, vh);
+            let (sw, sh) = compute_sim_dimensions(vw, vh, 1.0);
 
             let cell_w = vw / sw as f64;
             let cell_h = total_h / sh as f64;
