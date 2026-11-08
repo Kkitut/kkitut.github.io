@@ -7,9 +7,11 @@
 }
 
 body {
+    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
 
-    perspective: 1000px;
+    perspective: 740px;
 }
 
 .home-logo {
@@ -29,11 +31,26 @@ body {
 }
 
 #app.home-party {
+    position: fixed;
+    left: 0;
+    top: 0;
     background: #302b2e;
 
     transform-style: preserve-3d;
     transform-origin: 0 0;
     transition: background-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#app.home-party.home-jm {
+    background: transparent;
+}
+
+#app.home-party.home-jm > header,
+#app.home-party.home-jm > .home-main,
+#app.home-party.home-jm > footer,
+#app.home-party.home-jm > .gl-back,
+#app.home-party.home-jm > .sr-booth {
+    display: none;
 }
 
 .home-party .home-main {
@@ -67,4 +84,535 @@ body {
 
 #app.home-party .gl-back {
     display: block;
+    max-width: 648px;
+    max-height: 648px;
+}
+
+/* Shooting range wireframe booth (2x linear scale: 1680 x 760 x 2400 at -3200, 0, 3600) */
+.sr-booth {
+    display: none;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+    transform-style: preserve-3d;
+    transform: translate3d(-3200px, 0px, 3600px);
+    pointer-events: none;
+}
+
+#app.home-party .sr-booth {
+    display: block;
+}
+
+.sr-face {
+    position: absolute;
+    left: 0;
+    top: 0;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+    background-size: 60px 60px;
+}
+
+.sr-floor {
+    width: 420px;
+    height: 600px;
+    transform: translate(-50%, -50%) translateY(380px) rotateX(90deg) scale(4);
+}
+
+.sr-ceiling {
+    width: 420px;
+    height: 600px;
+    transform: translate(-50%, -50%) translateY(-380px) rotateX(90deg) scale(4);
+}
+
+.sr-left {
+    width: 600px;
+    height: 190px;
+    transform: translate(-50%, -50%) translateX(-840px) rotateY(90deg) scale(4);
+}
+
+.sr-right {
+    width: 600px;
+    height: 190px;
+    transform: translate(-50%, -50%) translateX(840px) rotateY(90deg) scale(4);
+}
+
+.sr-front {
+    width: 420px;
+    height: 190px;
+    background: none;
+    transform: translate(-50%, -50%) translateZ(1200px) scale(4);
+}
+
+.sr-back {
+    width: 1680px;
+    height: 760px;
+    background-size: 240px 240px;
+    background-color: rgba(255, 255, 255, 0.02);
+    contain: paint;
+    transform: translate(-50%, -50%) translateZ(-1200px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 5x6 target grid (6 cols x 5 rows = 720x600, 120px cells) */
+.sr-grid {
+    position: relative;
+    width: 720px;
+    height: 600px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.32) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.32) 1px, transparent 1px);
+    background-size: 120px 120px;
+}
+
+.sr-target {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 92px;
+    height: 92px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        #fff 0 18%,
+        transparent 19% 46%,
+        rgba(255, 255, 255, 0.85) 47% 52%,
+        rgba(255, 255, 255, 0.12) 53% 100%
+    );
+    box-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
+}
+
+/* Small center HUD crosshair when inside the shooting range */
+.sr-crosshair {
+    visibility: hidden;
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    transform: translate(-50%, -50%);
+    background:
+        linear-gradient(#fff, #fff) 6px 1px / 2px 12px no-repeat,
+        linear-gradient(#fff, #fff) 1px 6px / 12px 2px no-repeat,
+        linear-gradient(#000, #000) 5px 0 / 4px 14px no-repeat,
+        linear-gradient(#000, #000) 0 5px / 14px 4px no-repeat;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+/* Bottom-left technical plate HUD scoreboard (inspired by reference panel) */
+.sr-board {
+    visibility: hidden;
+    position: fixed;
+    left: 24px;
+    bottom: 24px;
+    min-width: 240px;
+
+    display: flex;
+    flex-direction: column;
+
+    background: #131316;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+
+    font-family: "Geist Mono", monospace;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    color: #fff;
+
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.sr-board-head {
+    padding: 11px 18px;
+    font-size: 16px;
+    letter-spacing: 0.16em;
+    color: rgba(255, 255, 255, 0.45);
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.sr-board-row {
+    padding: 13px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sr-board-row:last-child {
+    border-bottom: none;
+}
+
+/* Colossal Jump Map chamber (6400 x 7600 x 6400 at 4800, -3400, 4800) */
+.jm-room {
+    display: none;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+    transform-style: preserve-3d;
+    transform: translate3d(4800px, -3400px, 4800px);
+    pointer-events: none;
+}
+
+#app.home-party .jm-room {
+    display: block;
+}
+
+.jm-face {
+    position: absolute;
+    left: 0;
+    top: 0;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    background-color: transparent;
+    background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+    background-size: 32px 32px;
+    transition: background-color 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.jm-floor {
+    width: 640px;
+    height: 640px;
+    backface-visibility: hidden;
+    transform: translate(-50%, -50%) translateY(3800px) rotateX(90deg) scale(10);
+}
+
+.jm-ceiling {
+    width: 640px;
+    height: 640px;
+    transform: translate(-50%, -50%) translateY(-3800px) rotateX(90deg) scale(10);
+}
+
+.jm-left {
+    width: 640px;
+    height: 760px;
+    transform: translate(-50%, -50%) translateX(-3200px) rotateY(90deg) scale(10);
+}
+
+.jm-right {
+    width: 640px;
+    height: 760px;
+    transform: translate(-50%, -50%) translateX(3200px) rotateY(90deg) scale(10);
+}
+
+.jm-back {
+    width: 640px;
+    height: 760px;
+    transform: translate(-50%, -50%) translateZ(-3200px) scale(10);
+}
+
+.jm-front {
+    width: 640px;
+    height: 760px;
+    transform: translate(-50%, -50%) translateZ(3200px) scale(10);
+}
+
+/* Human: Fall Flat matte flat-shaded environment & 3D rock blocks when player touches the floor */
+.jm-room.jm-active .jm-floor {
+    border-color: transparent;
+    background-color: transparent;
+    background-image: radial-gradient(closest-side, #bfa684 55%, transparent 100%);
+    background-size: 100% 100%;
+    transform: translate(-50%, -50%) translateY(3800px) rotateX(90deg) scale(36);
+}
+
+.jm-room.jm-active .jm-ceiling,
+.jm-room.jm-active .jm-back,
+.jm-room.jm-active .jm-left,
+.jm-room.jm-active .jm-right,
+.jm-room.jm-active .jm-front {
+    display: none;
+}
+
+@keyframes jm-pop {
+    from {
+        transform: translate3d(var(--px), calc(var(--py) + 180px), var(--pz))
+            rotateY(var(--ry, 0rad)) rotateX(var(--rx, 0rad)) rotateZ(var(--rz, 0rad))
+            rotateX(90deg) scale3d(0.05, 0.05, 0.05) translate(-50%, -50%);
+    }
+    to {
+        transform: translate3d(var(--px), var(--py), var(--pz))
+            rotateY(var(--ry, 0rad)) rotateX(var(--rx, 0rad)) rotateZ(var(--rz, 0rad))
+            rotateX(90deg) scale3d(1, 1, 1) translate(-50%, -50%);
+    }
+}
+
+/* Jump map 3D low-poly / flat-shaded matte blocks (all 6 faces outward with backface culling) */
+.jm-plat {
+    position: absolute;
+    left: 0;
+    top: 0;
+    box-sizing: border-box;
+    transform-origin: 0 0;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    transform: translate3d(var(--px), var(--py), var(--pz))
+        rotateY(var(--ry, 0rad)) rotateX(var(--rx, 0rad)) rotateZ(var(--rz, 0rad))
+        rotateX(90deg) translate(-50%, -50%);
+    background-color: var(--top, #d4bc9c);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    animation: jm-pop 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.jm-plat-s {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    background: var(--s2, #967d5e);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    transform: translateZ(calc(var(--ph, 120px) * -1)) rotateX(180deg);
+}
+
+/* South face (+Z outward, hangs down to local z = -ph) */
+.jm-plat::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 100%;
+    width: 100%;
+    height: var(--ph, 120px);
+    background: var(--s1, #b39978);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    backface-visibility: hidden;
+    transform-origin: 50% 0%;
+    transform: rotateX(-90deg);
+}
+
+/* East face (+X outward, hangs down to local z = -ph) */
+.jm-plat::after {
+    content: "";
+    position: absolute;
+    left: 100%;
+    top: 0;
+    width: var(--ph, 120px);
+    height: 100%;
+    background: var(--s2, #967d5e);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    backface-visibility: hidden;
+    transform-origin: 0% 50%;
+    transform: rotateY(90deg);
+}
+
+/* North face (-Z outward, hangs from bottom cap at z = -ph up to z = 0) */
+.jm-plat-s::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 100%;
+    width: 100%;
+    height: var(--ph, 120px);
+    background: var(--s2, #967d5e);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    backface-visibility: hidden;
+    transform-origin: 50% 0%;
+    transform: rotateX(-90deg);
+}
+
+/* West face (-X outward, hangs from bottom cap at z = -ph up to z = 0) */
+.jm-plat-s::after {
+    content: "";
+    position: absolute;
+    right: 100%;
+    top: 0;
+    width: var(--ph, 120px);
+    height: 100%;
+    background: var(--s1, #b39978);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    backface-visibility: hidden;
+    transform-origin: 100% 50%;
+    transform: rotateY(-90deg);
+}
+
+.jm-z0 { --top: #d4bc9c; --s1: #b39978; --s2: #967d5e; }
+.jm-z1 { --top: #c9513e; --s1: #ab402f; --s2: #8c3122; }
+.jm-z2 { --top: #ded8cd; --s1: #c2bcb0; --s2: #a39d92; }
+.jm-z3 { --top: #616e46; --s1: #4b5635; --s2: #384126; }
+.jm-z4 { --top: #8d9499; --s1: #737a7f; --s2: #5b6166; }
+.jm-z5 { --top: #e8ecef; --s1: #cbd2d6; --s2: #aeb6bb; }
+
+@keyframes jm-burst-out {
+    0% {
+        transform: translate3d(0px, -16px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale3d(0.2, 0.2, 0.2);
+        opacity: 1;
+    }
+    10% {
+        transform: translate3d(calc(var(--tx) * 0.72), var(--ty), calc(var(--tz) * 0.72))
+            rotateX(calc(var(--rx) * 0.4)) rotateY(calc(var(--ry) * 0.4)) rotateZ(calc(var(--rz) * 0.4))
+            scale3d(1, 1, 1);
+        opacity: 1;
+    }
+    65% {
+        opacity: 0.75;
+    }
+    100% {
+        transform: translate3d(var(--tx), calc(var(--ty) + 280px), var(--tz))
+            rotateX(var(--rx)) rotateY(var(--ry)) rotateZ(var(--rz))
+            scale3d(0.25, 0.25, 0.25);
+        opacity: 0;
+    }
+}
+
+.jm-burst {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    transform-style: preserve-3d;
+    pointer-events: none;
+}
+
+.jm-burst-p {
+    position: absolute;
+    left: -9px;
+    top: -9px;
+    width: 18px;
+    height: 18px;
+    background: var(--c, #ffca3a);
+    transform-style: preserve-3d;
+    pointer-events: none;
+    animation: jm-burst-out 8s cubic-bezier(0.06, 0.9, 0.16, 1) forwards;
+}
+
+.jm-burst-p::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: inherit;
+    transform: rotateY(90deg);
+}
+
+@keyframes jm-cloud-drift {
+    from {
+        transform: translate3d(calc(var(--cx) - 180px), var(--cy), var(--cz))
+            translate(-50%, -50%) rotateX(90deg) scale(6);
+    }
+    to {
+        transform: translate3d(calc(var(--cx) + 180px), var(--cy), var(--cz))
+            translate(-50%, -50%) rotateX(90deg) scale(6);
+    }
+}
+
+.jm-cloud {
+    position: absolute;
+    left: 0;
+    top: 0;
+    --ch: 24px;
+    transform-style: preserve-3d;
+    pointer-events: none;
+    border: none;
+    box-shadow: none;
+    background: rgba(240, 245, 252, 0.76);
+    animation: jm-cloud-drift 18s ease-in-out infinite alternate;
+}
+
+.jm-cloud-b {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transform: translateZ(calc(var(--ch, 24px) * -1));
+    border: none;
+    box-shadow: none;
+    background: rgba(223, 234, 246, 0.68);
+}
+
+/* South face */
+.jm-cloud::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 100%;
+    width: 100%;
+    height: var(--ch, 24px);
+    transform-origin: 50% 0;
+    transform: rotateX(-90deg);
+    background: rgba(229, 239, 248, 0.72);
+    border: none;
+    box-shadow: none;
+}
+
+/* East face */
+.jm-cloud::after {
+    content: "";
+    position: absolute;
+    left: 100%;
+    top: 0;
+    width: var(--ch, 24px);
+    height: 100%;
+    transform-origin: 0 50%;
+    transform: rotateY(90deg);
+    background: rgba(232, 241, 249, 0.72);
+    border: none;
+    box-shadow: none;
+}
+
+/* North face */
+.jm-cloud-b::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: var(--ch, 24px);
+    transform-origin: 50% 0;
+    transform: rotateX(90deg);
+    background: rgba(214, 229, 243, 0.70);
+    border: none;
+    box-shadow: none;
+}
+
+/* West face */
+.jm-cloud-b::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: var(--ch, 24px);
+    height: 100%;
+    transform-origin: 0 50%;
+    transform: rotateY(-90deg);
+    background: rgba(217, 231, 244, 0.70);
+    border: none;
+    box-shadow: none;
+}
+
+@keyframes jm-crown-float {
+    0% {
+        transform: translate3d(var(--px), var(--py), var(--pz))
+            rotateY(0deg) rotateX(18deg) rotateZ(18deg)
+            rotateX(90deg) translate(-50%, -50%);
+    }
+    50% {
+        transform: translate3d(var(--px), calc(var(--py) - 42px), var(--pz))
+            rotateY(180deg) rotateX(18deg) rotateZ(18deg)
+            rotateX(90deg) translate(-50%, -50%);
+    }
+    100% {
+        transform: translate3d(var(--px), var(--py), var(--pz))
+            rotateY(360deg) rotateX(18deg) rotateZ(18deg)
+            rotateX(90deg) translate(-50%, -50%);
+    }
+}
+
+.jm-crown {
+    width: 76px;
+    height: 76px;
+    --ph: 140px;
+    --top: #f7f3e6;
+    --s1: #e2d7be;
+    --s2: #c7b899;
+    animation: jm-crown-float 7s linear infinite;
 }
