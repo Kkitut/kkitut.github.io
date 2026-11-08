@@ -544,11 +544,12 @@ fn b2_step_player(
     coyote: &mut f32,
     jump_buffer: &mut f32,
 ) -> (bool, bool) {
-    let sub_dt = dt * 0.25;
     let mut touched_jm_floor = false;
     let mut reached_goal = false;
+    let step_count = ((dt / (1.0 / 120.0)).ceil() as usize).clamp(4, 16);
+    let sub_dt = dt / step_count as f32;
     let mut any_grounded = false;
-    for _ in 0..4 {
+    for _ in 0..step_count {
         // 1. Symplectic Euler velocity step + linear damping
         vel[1] += B2_GRAVITY * sub_dt;
         if wish[0] != 0.0 || wish[1] != 0.0 {
@@ -640,8 +641,9 @@ fn cam_frame() {
         let mut slot = c.borrow_mut();
         let Some(st) = slot.as_mut() else { return };
         let t_now = now();
-        let dt = (((t_now - st.last_t) * 0.001) as f32).clamp(1.0 / 240.0, 0.05);
+        let elapsed = ((t_now - st.last_t) * 0.001) as f32;
         st.last_t = t_now;
+        let dt = elapsed.clamp(1.0 / 240.0, 0.2);
         let locked = document().pointer_lock_element().is_some();
         if !locked {
             let (mx, my) = MOUSE.with(|m| m.get());

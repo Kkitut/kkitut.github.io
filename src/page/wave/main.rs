@@ -1,9 +1,17 @@
-use leptos::{html::Canvas, prelude::*};
+use leptos::{
+    ev,
+    html::Canvas,
+    prelude::*,
+    web_sys::{
+        HtmlCanvasElement, WebGlBuffer, WebGlProgram, WebGlRenderingContext, WebGlShader,
+        WebGlTexture, WebGlUniformLocation,
+    },
+};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
 };
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 
 const SPAN: f64 = 500.0;
 const SEGMENTS: usize = 220;
@@ -178,6 +186,181 @@ impl WaveSim {
     }
 }
 
+fn compile_shader(
+    gl: &WebGlRenderingContext,
+    shader_type: u32,
+    source: &str,
+) -> Result<WebGlShader, JsValue> {
+    let shader = gl
+        .create_shader(shader_type)
+        .ok_or_else(|| JsValue::from_str("create_shader failed"))?;
+    gl.shader_source(&shader, source);
+    gl.compile_shader(&shader);
+    if gl
+        .get_shader_parameter(&shader, WebGlRenderingContext::COMPILE_STATUS)
+        .as_bool()
+        .unwrap_or(false)
+    {
+        Ok(shader)
+    } else {
+        Err(JsValue::from_str(
+            &gl.get_shader_info_log(&shader)
+                .unwrap_or_else(|| "compile_shader failed".into()),
+        ))
+    }
+}
+
+fn create_gl_program(
+    gl: &WebGlRenderingContext,
+    vs_src: &str,
+    fs_src: &str,
+) -> Result<WebGlProgram, JsValue> {
+    let vs = compile_shader(gl, WebGlRenderingContext::VERTEX_SHADER, vs_src)?;
+    let fs = compile_shader(gl, WebGlRenderingContext::FRAGMENT_SHADER, fs_src)?;
+    let program = gl
+        .create_program()
+        .ok_or_else(|| JsValue::from_str("create_program failed"))?;
+    gl.attach_shader(&program, &vs);
+    gl.attach_shader(&program, &fs);
+    gl.link_program(&program);
+    if gl
+        .get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS)
+        .as_bool()
+        .unwrap_or(false)
+    {
+        Ok(program)
+    } else {
+        Err(JsValue::from_str(
+            &gl.get_program_info_log(&program)
+                .unwrap_or_else(|| "link_program failed".into()),
+        ))
+    }
+}
+
+struct WaveGl {
+    gl: WebGlRenderingContext,
+    program: WebGlProgram,
+    texture: WebGlTexture,
+    buffer: WebGlBuffer,
+    pos_attr: u32,
+    u_tex: WebGlUniformLocation,
+    cur_w: u32,
+    cur_h: u32,
+}
+
+impl WaveGl {
+    fn new(canvas: &HtmlCanvasElement) -> Result<Self, JsValue> {
+        let gl = canvas
+            .get_context("webgl")?
+            .ok_or_else(|| JsValue::from_str("webgl unavailable"))?
+            .dyn_into::<WebGlRenderingContext>()?;
+
+        gl.pixel_storei(WebGlRenderingContext::UNPACK_ALIGNMENT, 1);
+
+        const VS: &str = "attribute vec2 a_pos;\nvarying vec2 v_uv;\nvoid main(){\nv_uv=a_pos*0.5+0.5;\nv_uv.y=1.0-v_uv.y;\ngl_Position=vec4(a_pos,0.0,1.0);\n}";
+        const FS: &str = "precision mediump float;\nuniform sampler2D u_tex;\nvarying vec2 v_uv;\nvoid main(){\ngl_FragColor=texture2D(u_tex,v_uv);\n}";
+
+        let program = create_gl_program(&gl, VS, FS)?;
+        let pos_attr = gl.get_attrib_location(&program, "a_pos") as u32;
+        let u_tex = gl
+            .get_uniform_location(&program, "u_tex")
+            .ok_or_else(|| JsValue::from_str("missing u_tex uniform"))?;
+
+        let buffer = gl
+            .create_buffer()
+            .ok_or_else(|| JsValue::from_str("create_buffer failed"))?;
+        gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
+        let quad: [f32; 8] = [-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0];
+        unsafe {
+            let view = js_sys::Float32Array::view(&quad);
+            gl.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ARRAY_BUFFER,
+                &view,
+                WebGlRenderingContext::STATIC_DRAW,
+            );
+        }
+
+        let texture = gl
+            .create_texture()
+            .ok_or_else(|| JsValue::from_str("create_texture failed"))?;
+        gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&texture));
+        gl.tex_parameteri(
+            WebGlRenderingContext::TEXTURE_2D,
+            WebGlRenderingContext::TEXTURE_MIN_FILTER,
+            WebGlRenderingContext::LINEAR as i32,
+        );
+        gl.tex_parameteri(
+            WebGlRenderingContext::TEXTURE_2D,
+            WebGlRenderingContext::TEXTURE_MAG_FILTER,
+            WebGlRenderingContext::LINEAR as i32,
+        );
+        gl.tex_parameteri(
+            WebGlRenderingContext::TEXTURE_2D,
+            WebGlRenderingContext::TEXTURE_WRAP_S,
+            WebGlRenderingContext::CLAMP_TO_EDGE as i32,
+        );
+        gl.tex_parameteri(
+            WebGlRenderingContext::TEXTURE_2D,
+            WebGlRenderingContext::TEXTURE_WRAP_T,
+            WebGlRenderingContext::CLAMP_TO_EDGE as i32,
+        );
+
+        Ok(Self {
+            gl,
+            program,
+            texture,
+            buffer,
+            pos_attr,
+            u_tex,
+            cur_w: 0,
+            cur_h: 0,
+        })
+    }
+
+    fn render(&mut self, width: u32, height: u32, pixels: &[u8]) {
+        let gl = &self.gl;
+        if self.cur_w != width || self.cur_h != height {
+            self.cur_w = width;
+            self.cur_h = height;
+            gl.viewport(0, 0, width as i32, height as i32);
+        }
+
+        gl.use_program(Some(&self.program));
+
+        gl.active_texture(WebGlRenderingContext::TEXTURE0);
+        gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&self.texture));
+        let _ = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+            WebGlRenderingContext::TEXTURE_2D,
+            0,
+            WebGlRenderingContext::RGBA as i32,
+            width as i32,
+            height as i32,
+            0,
+            WebGlRenderingContext::RGBA,
+            WebGlRenderingContext::UNSIGNED_BYTE,
+            Some(pixels),
+        );
+        gl.uniform1i(Some(&self.u_tex), 0);
+
+        gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.buffer));
+        gl.enable_vertex_attrib_array(self.pos_attr);
+        gl.vertex_attrib_pointer_with_i32(self.pos_attr, 2, WebGlRenderingContext::FLOAT, false, 0, 0);
+
+        gl.draw_arrays(WebGlRenderingContext::TRIANGLE_STRIP, 0, 4);
+    }
+
+    fn clear(&mut self, width: u32, height: u32) {
+        let gl = &self.gl;
+        if self.cur_w != width || self.cur_h != height {
+            self.cur_w = width;
+            self.cur_h = height;
+            gl.viewport(0, 0, width as i32, height as i32);
+        }
+        gl.clear_color(0.0, 0.0, 0.0, 0.0);
+        gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+    }
+}
+
 thread_local! {
     static WHEEL_CB: RefCell<Option<Closure<dyn FnMut(leptos::web_sys::WheelEvent)>>> =
         const { RefCell::new(None) };
@@ -240,6 +423,7 @@ pub fn Wave() -> impl IntoView {
     };
     let sim: Rc<RefCell<WaveSim>> = Rc::new(RefCell::new(WaveSim::new(init_w, init_h)));
     let canvas_ref = NodeRef::<Canvas>::new();
+    let gl_state: Rc<RefCell<Option<WaveGl>>> = Rc::new(RefCell::new(None));
     let (show_scene1_content, set_show_scene1_content) = signal(false);
 
     // Scene 1: 10s idle hint and arrow unlock/flash
@@ -311,6 +495,9 @@ pub fn Wave() -> impl IntoView {
         let sim_ref = sim_effect.clone();
         let last_a1_hit_ref = last_a1_hit.clone();
         let leaf_state_ref = leaf_state.clone();
+        let gl_ref = gl_state.clone();
+        let last_t = Rc::new(Cell::new(0.0f64));
+        let sim_acc = Rc::new(Cell::new(0.0f64));
 
         let cb: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
         let cb_clone = cb.clone();
@@ -322,13 +509,22 @@ pub fn Wave() -> impl IntoView {
             });
             let t = (now - t0) * 0.001;
 
+            let prev = last_t.get();
+            last_t.set(now);
+            let dt = if prev > 0.0 {
+                ((now - prev) * 0.001).clamp(0.0, 0.2)
+            } else {
+                1.0 / 60.0
+            };
+
             // Smooth scroll interpolation
             if scroll_wheeling.get_untracked() {
                 let c = cur_scroll.get();
                 let tg = scroll_tgt.get_untracked();
                 let diff = tg - c;
                 if diff.abs() > 0.35 {
-                    let next = c + diff * 0.12;
+                    let factor = (1.0 - (-12.0 * dt).exp()).clamp(0.0, 1.0);
+                    let next = c + diff * factor;
                     cur_scroll.set(next);
                     window().scroll_to_with_x_and_y(0.0, next);
                 } else {
@@ -401,6 +597,21 @@ pub fn Wave() -> impl IntoView {
                 let (target_w, target_h) = compute_sim_dimensions(vw, vh);
                 sim_ref.borrow_mut().ensure_size(target_w, target_h);
 
+                const SIM_DT: f64 = 1.0 / 60.0;
+                let acc = sim_acc.get() + dt;
+                let mut rem = acc;
+                let mut steps = 0;
+                {
+                    let mut s = sim_ref.borrow_mut();
+                    while rem >= SIM_DT && steps < 8 {
+                        s.step();
+                        rem -= SIM_DT;
+                        steps += 1;
+                    }
+                    s.render_to_pixels();
+                }
+                sim_acc.set(rem);
+
                 let (sw, sh) = {
                     let s = sim_ref.borrow();
                     (s.width, s.height)
@@ -422,9 +633,10 @@ pub fn Wave() -> impl IntoView {
                 let (raw_h, raw_gx, raw_gy) = sim_ref.borrow().sample(sw as f32 * 0.5, leaf_y);
                 let (prev_h, prev_gx, prev_gy) = leaf_state_ref.get();
 
-                let h = prev_h + (raw_h - prev_h) * 0.32;
-                let gx = prev_gx + (raw_gx - prev_gx) * 0.32;
-                let gy = prev_gy + (raw_gy - prev_gy) * 0.32;
+                let lerp_k = (1.0 - (-23.0 * dt).exp()).clamp(0.0, 1.0) as f32;
+                let h = prev_h + (raw_h - prev_h) * lerp_k;
+                let gx = prev_gx + (raw_gx - prev_gx) * lerp_k;
+                let gy = prev_gy + (raw_gy - prev_gy) * lerp_k;
                 leaf_state_ref.set((h, gx, gy));
 
                 let tz = (h * 1.5).clamp(-55.0, 65.0);
@@ -522,7 +734,7 @@ pub fn Wave() -> impl IntoView {
                 }
             }
 
-            // 2D Wave equation simulation step & rendering to canvas
+            // 2D Wave equation simulation step & rendering to canvas via WebGL
             if let Some(canvas) = canvas_ref.get_untracked() {
                 let (sw, sh) = {
                     let s = sim_ref.borrow();
@@ -534,23 +746,19 @@ pub fn Wave() -> impl IntoView {
                     canvas.set_height(sh);
                 }
 
-                if let Ok(Some(ctx_val)) = canvas.get_context("2d") {
-                    if let Ok(ctx) = ctx_val.dyn_into::<leptos::web_sys::CanvasRenderingContext2d>() {
-                        if promoted.get_untracked() {
-                            let mut s = sim_ref.borrow_mut();
-                            s.step();
-                            s.render_to_pixels();
+                let mut gl_slot = gl_ref.borrow_mut();
+                if gl_slot.is_none() {
+                    if let Ok(gl) = WaveGl::new(&canvas) {
+                        *gl_slot = Some(gl);
+                    }
+                }
 
-                            if let Ok(img_data) = leptos::web_sys::ImageData::new_with_u8_clamped_array_and_sh(
-                                wasm_bindgen::Clamped(&s.pixels),
-                                sw,
-                                sh,
-                            ) {
-                                let _ = ctx.put_image_data(&img_data, 0.0, 0.0);
-                            }
-                        } else {
-                            ctx.clear_rect(0.0, 0.0, sw as f64, sh as f64);
-                        }
+                if let Some(gl) = gl_slot.as_mut() {
+                    if promoted.get_untracked() {
+                        let s = sim_ref.borrow();
+                        gl.render(sw, sh, &s.pixels);
+                    } else {
+                        gl.clear(sw, sh);
                     }
                 }
             }
@@ -569,7 +777,40 @@ pub fn Wave() -> impl IntoView {
         }
     });
 
+    let pointer_h = window_event_listener(ev::pointerdown, {
+        let sim = sim.clone();
+        move |ev: leptos::web_sys::PointerEvent| {
+            if !promoted.get_untracked() {
+                return;
+            }
+            let sy = window().scroll_y().unwrap_or(0.0);
+            let vh = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(1.0);
+            let vw = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1.0);
+            let client_y = ev.client_y() as f64;
+            let world_y = client_y + sy;
+
+            // Only allow ripple clicks in Part 2 ("물 위를 건드리면..") and Part 3 ("나뭇잎")
+            if world_y < 1.0 * vh - 20.0 || world_y >= 3.0 * vh - 20.0 {
+                return;
+            }
+
+            let total_h = 4.0 * vh;
+            let (sw, sh) = {
+                let s = sim.borrow();
+                (s.width, s.height)
+            };
+            let gx = ((ev.client_x() as f64 / vw) * sw as f64).clamp(0.0, (sw - 1) as f64) as usize;
+            let gy = ((world_y / total_h) * sh as f64).clamp(0.0, (sh - 1) as f64) as usize;
+
+            sim.borrow_mut().touch(gx, gy, 4, 150.0);
+
+            set_has_clicked_scene1.set(true);
+            set_show_scene1_hint.set(false);
+        }
+    });
+
     on_cleanup(move || {
+        pointer_h.remove();
         if let Some(id) = raf_id.get_untracked() {
             let _ = window().cancel_animation_frame(id);
         }
@@ -600,38 +841,6 @@ pub fn Wave() -> impl IntoView {
             set_promote_from.set((cur_cx - tgt_cx, cur_cy - tgt_cy));
         }
         set_promoted.set(true);
-    };
-
-    let on_pointer_down = {
-        let sim = sim.clone();
-        move |ev: leptos::web_sys::PointerEvent| {
-            if !promoted.get_untracked() {
-                return;
-            }
-            let sy = window().scroll_y().unwrap_or(0.0);
-            let vh = window().inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(1.0);
-            let vw = window().inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1.0);
-            let client_y = ev.client_y() as f64;
-            let world_y = client_y + sy;
-
-            // Only allow ripple clicks in Part 2 ("물 위를 건드리면..") and Part 3 ("나뭇잎")
-            if world_y < 1.0 * vh - 20.0 || world_y >= 3.0 * vh - 20.0 {
-                return;
-            }
-
-            let total_h = 4.0 * vh;
-            let (sw, sh) = {
-                let s = sim.borrow();
-                (s.width, s.height)
-            };
-            let gx = ((ev.client_x() as f64 / vw) * sw as f64).clamp(0.0, (sw - 1) as f64) as usize;
-            let gy = ((world_y / total_h) * sh as f64).clamp(0.0, (sh - 1) as f64) as usize;
-
-            sim.borrow_mut().touch(gx, gy, 4, 150.0);
-
-            set_has_clicked_scene1.set(true);
-            set_show_scene1_hint.set(false);
-        }
     };
 
     let scroll_to_y = move |factor: f64| {
@@ -686,7 +895,7 @@ pub fn Wave() -> impl IntoView {
         <>
             <link rel="stylesheet" href="/style/page/wave/main.css"/>
 
-            <main class="wave-main" on:pointerdown=on_pointer_down>
+            <main class="wave-main">
                 <canvas
                     node_ref=canvas_ref
                     class="wave-canvas"
